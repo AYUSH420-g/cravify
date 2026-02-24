@@ -1,40 +1,67 @@
 @echo off
 echo ===================================================
 echo Welcome to Cravify!
-echo Starting all 8 services (4 Frontends, 4 Backends)
-echo Each service will open in a new command prompt window.
-echo Please wait while dependencies are installed...
+echo Installing dependencies for all 8 services sequentially...
+echo This visually prevents a console mess before starting the servers.
 echo ===================================================
 
-:: Frontend Services
-echo Starting Admin Frontend...
-start "Admin Frontend" cmd /k "cd frontend\admin && npm install && npm run dev"
+echo [1/8] Installing Admin Frontend...
+pushd frontend\admin
+call npm install
+popd
 
-echo Starting Customer Frontend...
-start "Customer Frontend" cmd /k "cd frontend\customer && npm install && npm run dev"
+echo [2/8] Installing Admin Backend...
+pushd backend\admin
+call npm install
+popd
 
-echo Starting Delivery Frontend...
-start "Delivery Frontend" cmd /k "cd frontend\delivery && npm install && npm run dev"
+echo [3/8] Installing Customer Frontend...
+pushd frontend\customer
+call npm install
+popd
 
-echo Starting Restaurant Frontend...
-start "Restaurant Frontend" cmd /k "cd frontend\restaurant && npm install && npm run dev"
+echo [4/8] Installing Customer Backend...
+pushd backend\customer
+call npm install
+popd
 
-:: Backend Services
-echo Starting Admin Backend...
-start "Admin Backend" cmd /k "cd backend\admin && npm install && npm run dev"
+echo [5/8] Installing Delivery Frontend...
+pushd frontend\delivery
+call npm install
+popd
 
-echo Starting Customer Backend...
-start "Customer Backend" cmd /k "cd backend\customer && npm install && npm run dev"
+echo [6/8] Installing Delivery Backend...
+pushd backend\delivery
+call npm install
+popd
 
-echo Starting Delivery Backend...
-start "Delivery Backend" cmd /k "cd backend\delivery && npm install && npm run dev"
+echo [7/8] Installing Restaurant Frontend...
+pushd frontend\restaurant
+call npm install
+popd
 
-echo Starting Restaurant Backend...
-start "Restaurant Backend" cmd /k "cd backend\restaurant && npm install && npm run dev"
+echo [8/8] Installing Restaurant Backend...
+pushd backend\restaurant
+call npm install
+popd
 
 echo ===================================================
-echo All services have been launched!
-echo Ensure that MongoDB is running locally or configured via .env files.
-echo Close the individual windows to stop the services.
+echo All dependencies installed!
+echo Starting all 8 services using 'npx concurrently' within this SINGLE terminal...
+echo Logs will be color coded and labeled!
+echo Press Ctrl+C at any time to seamlessly STOP all services.
 echo ===================================================
+
+call npx concurrently ^
+  --names "F-Admin,B-Admin,F-Customer,B-Customer,F-Delivery,B-Delivery,F-Restaurant,B-Restaurant" ^
+  --prefix-colors "blue,green,magenta,yellow,cyan,white,gray,red" ^
+  "cd frontend\admin && npm run dev" ^
+  "cd backend\admin && npm run dev" ^
+  "cd frontend\customer && npm run dev" ^
+  "cd backend\customer && npm run dev" ^
+  "cd frontend\delivery && npm run dev" ^
+  "cd backend\delivery && npm run dev" ^
+  "cd frontend\restaurant && npm run dev" ^
+  "cd backend\restaurant && npm run dev"
+
 pause
