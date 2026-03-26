@@ -18,115 +18,73 @@ export const AuthProvider = ({ children }) => {
         }
     }, [token]);
 
-    // MOCK AUTH IMPLEMENTATION
     const fetchUser = async (authToken) => {
-        // Simulate API delay
-        setTimeout(() => {
-            if (authToken === 'mock-admin-token') {
-                setUser({ id: '1', name: 'Super Admin', email: 'admin@cravify.com', role: 'admin' });
-            } else if (authToken.startsWith('mock-token-')) {
-                // Retrieve stored user
-                try {
-                    const storedUser = localStorage.getItem('currentUser');
-                    if (storedUser) {
-                        setUser(JSON.parse(storedUser));
-                    } else {
-                        // Fallback default
-                        setUser({ id: '2', name: 'Test User', email: 'user@test.com', role: 'customer' });
-                    }
-                } catch (e) {
-                    console.error("Failed to parse user", e);
-                    setUser(null);
-                }
+        try {
+            const res = await fetch('http://localhost:5000/api/auth/me', {
+                headers: { 'x-auth-token': authToken }
+            });
+            if (res.ok) {
+                const userData = await res.json();
+                setUser(userData);
             } else {
-                setLoading(false);
+                setUser(null);
+                setToken(null);
+                localStorage.removeItem('token');
             }
+        } catch (err) {
+            console.error('Auth fetch failed', err);
+            setUser(null);
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     const login = async (email, password) => {
-        // Mock Login Logic
-        if (email === 'admin@cravify.com' && password === 'admin123') {
-            const token = 'mock-admin-token';
-            const user = { id: '1', name: 'Super Admin', email: 'admin@cravify.com', role: 'admin' };
-            localStorage.setItem('token', token);
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            setToken(token);
-            setUser(user);
-            return { success: true, user };
-        }
-
-        // Dynamic Login for registered mock users
         try {
-            const storedUser = localStorage.getItem('mockUser'); // Keep checking mockUser for the just-signed-up user fallback
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                if (email === user.email && password === 'password') {
-                    const token = `mock-token-${user.role}`;
-                    localStorage.setItem('token', token);
-                    localStorage.setItem('currentUser', JSON.stringify(user));
-                    setToken(token);
-                    setUser(user);
-                    return { success: true, user };
-                }
+            const res = await fetch('http://localhost:5000/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                localStorage.setItem('token', data.token);
+                setToken(data.token);
+                setUser(data.user);
+                return { success: true, user: data.user };
+            } else {
+                return { success: false, message: data.message || 'Login failed' };
             }
-        } catch (e) {
-            console.error("Failed to parse mock user during login", e);
+        } catch (err) {
+            return { success: false, message: 'Network error' };
         }
-
-        if (email === 'user@test.com' && password === '123456') {
-            const token = 'mock-token-customer';
-            const user = { id: '2', name: 'Test User', email: 'user@test.com', role: 'customer' };
-            localStorage.setItem('token', token);
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            setToken(token);
-            setUser(user);
-            return { success: true, user };
-        }
-
-        if (email === 'vendor@cravify.com' && password === '123456') {
-            const token = 'mock-token-restaurant_partner';
-            const user = { id: '3', name: 'La Pino\'z Pizza', email: 'vendor@cravify.com', role: 'restaurant_partner' };
-            localStorage.setItem('token', token);
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            setToken(token);
-            setUser(user);
-            return { success: true, user };
-        }
-
-        if (email === 'driver@cravify.com' && password === '123456') {
-            const token = 'mock-token-delivery_partner';
-            const user = { id: '4', name: 'Demo Driver', email: 'driver@cravify.com', role: 'delivery_partner' };
-            localStorage.setItem('token', token);
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            setToken(token);
-            setUser(user);
-            return { success: true, user };
-        }
-
-        return { success: false, message: 'Invalid credentials. For Admin use: admin@cravify.com / admin123' };
     };
 
-    const register = async (name, email, password, role = 'customer') => {
-        // Mock Register
-        const token = `mock-token-${role}`;
-        const user = { id: Date.now().toString(), name, email, role };
-
-        // Store mock user so we can login with them later
-        localStorage.setItem('mockUser', JSON.stringify(user));
-        // Also set as current user
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        localStorage.setItem('token', token);
-
-        setToken(token);
-        setUser(user);
-        return { success: true, user };
+    const register = async (name, email, password, role = 'delivery_partner') => {
+        try {
+            const res = await fetch('http://localhost:5000/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password, role: 'delivery_partner' })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                localStorage.setItem('token', data.token);
+                setToken(data.token);
+                setUser(data.user);
+                return { success: true, user: data.user };
+            } else {
+                return { success: false, message: data.message || 'Registration failed' };
+            }
+        } catch (err) {
+            return { success: false, message: 'Network error' };
+        }
     };
 
     const logout = () => {
         localStorage.removeItem('token');
-        localStorage.removeItem('currentUser');
         setToken(null);
         setUser(null);
     };

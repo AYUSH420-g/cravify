@@ -1,16 +1,45 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { ChevronLeft, Star, Clock, Shield, MapPin, Settings, LogOut, FileText, Bike } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Button from '../components/Button';
+import { useAuth } from '../context/AuthContext';
 
 const DeliveryProfile = () => {
+    const { user, token, logout } = useAuth();
+    const navigate = useNavigate();
+    const [profile, setProfile] = useState(null);
+
+    useEffect(() => {
+        if (token) {
+            fetchProfile();
+        }
+    }, [token]);
+
+    const fetchProfile = async () => {
+        try {
+            const res = await fetch('http://localhost:5000/api/delivery/profile', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                setProfile(await res.json());
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleLogout = () => {
+        logout();
+        navigate('/');
+    };
+
     return (
         <MainLayout>
             <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
                 <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
                     <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
-                        <Link to="/delivery/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
+                        <Link to="/dashboard" className="p-2 hover:bg-gray-100 rounded-full">
                             <ChevronLeft size={24} />
                         </Link>
                         <h1 className="text-xl font-bold text-gray-800">Profile & Stats</h1>
@@ -21,15 +50,15 @@ const DeliveryProfile = () => {
                     {/* User Info */}
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6 flex items-center gap-4">
                         <div className="w-16 h-16 bg-gray-200 rounded-full overflow-hidden">
-                            <img src="https://ui-avatars.com/api/?name=Ramesh+Kumar&background=random" alt="Rider" className="w-full h-full object-cover" />
+                            <img src={`https://ui-avatars.com/api/?name=${user?.name || 'Rider'}&background=random`} alt="Rider" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1">
-                            <h2 className="text-xl font-bold text-gray-900">Ramesh Kumar</h2>
-                            <p className="text-gray-500 text-sm">ID: DRV-88219 • Joined Nov 2024</p>
+                            <h2 className="text-xl font-bold text-gray-900">{user?.name || 'Loading...'}</h2>
+                            <p className="text-gray-500 text-sm">{user?.email}</p>
                             <div className="flex items-center gap-1 text-yellow-500 mt-1">
                                 <Star size={16} fill="currentColor" />
                                 <span className="font-bold">4.8</span>
-                                <span className="text-gray-400 text-xs">(124 ratings)</span>
+                                <span className="text-gray-400 text-xs">({profile?.totalDeliveries || 0} deliveries)</span>
                             </div>
                         </div>
                     </div>
@@ -40,14 +69,14 @@ const DeliveryProfile = () => {
                             <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                 <CheckCircleIcon />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-800">98%</h3>
+                            <h3 className="text-2xl font-bold text-gray-800">100%</h3>
                             <p className="text-xs text-gray-500">Order Acceptance</p>
                         </div>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">
                             <div className="w-10 h-10 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                 <Clock size={20} />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-800">95%</h3>
+                            <h3 className="text-2xl font-bold text-gray-800">100%</h3>
                             <p className="text-xs text-gray-500">On-Time Delivery</p>
                         </div>
                     </div>
@@ -79,7 +108,7 @@ const DeliveryProfile = () => {
                             </div>
                             <ChevronLeft className="rotate-180 text-gray-300" size={20} />
                         </div>
-                        <div className="p-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer pb-20">
+                        <div onClick={handleLogout} className="p-4 flex items-center gap-4 hover:bg-gray-50 cursor-pointer pb-20">
                             <LogOut className="text-red-500" size={20} />
                             <div className="flex-1">
                                 <h4 className="font-medium text-red-500">Logout</h4>

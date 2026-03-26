@@ -3,63 +3,154 @@ import MainLayout from '../layouts/MainLayout';
 import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Menu } from 'lucide-react';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const DeliveryDashboard = () => {
-    const [isOnline, setIsOnline] = useState(true);
-    const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, earnings, profile
+    const { token } = useAuth();
+    const [isOnline, setIsOnline] = useState(false);
+    const [profile, setProfile] = useState(null);
+    const [activeTab, setActiveTab] = useState('dashboard');
     const [showNewOrderModal, setShowNewOrderModal] = useState(false);
+    const [newOrder, setNewOrder] = useState(null);
 
-    // Mock Active Order State
-    const [activeOrder, setActiveOrder] = useState({
-        id: 'ORD-205',
-        restaurant: {
-            name: "La Pino'z Pizza",
-            address: "Shop 4, CG Road, Ahmedabad",
-            lat: 23.0225,
-            lng: 72.5714
-        },
-        customer: {
-            name: "Aryan Sharma",
-            address: "Flat 402, Galaxy Apt, Ahmedabad",
-            phone: "+91 98765 43210"
-        },
-        items: [
-            { name: "Paneer Tikka Pizza", qty: 1 },
-            { name: "Coke", qty: 2 }
-        ],
-        status: 'picked_up', // accepted, arrived_at_restaurant, picked_up, arrived_at_customer, delivered
-        earnings: 45
-    });
+    const [activeOrder, setActiveOrder] = useState(null);
+    const [loadingTasks, setLoadingTasks] = useState(true);
 
-    // Mock New Order Request
+    // Fetch initial profile and active tasks
     useEffect(() => {
-        if (isOnline && !activeOrder) {
-            const timer = setTimeout(() => {
-                setShowNewOrderModal(true);
-            }, 3000);
-            return () => clearTimeout(timer);
+        if (token) {
+            fetchProfile();
+            fetchActiveTask();
         }
-    }, [isOnline, activeOrder]);
+    }, [token]);
 
-    const handleStatusUpdate = (newStatus) => {
-        setActiveOrder({ ...activeOrder, status: newStatus });
+    // Polling for new available orders if online and no active order
+    useEffect(() => {
+        let interval;
+        if (token && isOnline && !activeOrder) {
+            fetchAvailableTasks();
+            interval = setInterval(fetchAvailableTasks, 10000); // poll every 10s
+        }
+        return () => clearInterval(interval);
+    }, [token, isOnline, activeOrder]);
+
+    const fetchProfile = async () => {
+        try {
+            const res = await fetch('http://localhost:5000/api/delivery/profile', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setProfile(data);
+                setIsOnline(data.isOnline);
+            }
+        } catch (err) {
+            console.error(err);
+        }
     };
 
-    const handleAcceptOrder = () => {
-        setActiveOrder({
-            id: 'ORD-NEW-001',
-            restaurant: { name: "Burger King", address: "Alpha One Mall, Ahmedabad" },
-            customer: { name: "Priya Patel", address: "B-202, Shivalik Shilp" },
-            items: [{ name: "Whopper Meal", qty: 1 }],
-            status: 'accepted',
-            earnings: 35
-        });
+    const toggleOnlineStatus = async () => {
+        try {
+            const res = await fetch('http://localhost:5000/api/delivery/profile/status', {
+                method: 'PUT',
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setIsOnline(data.isOnline);
+            }
+        } catch (err) {
+            console.error(err);
+            // Revert optimistically if needed
+        }
+    };
+
+    const fetchActiveTask = async () => {
+        try {
+            setLoadingTasks(true);
+            const res = await fetch('http://localhost:5000/api/delivery/tasks/active', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setActiveOrder(data || null);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoadingTasks(false);
+        }
+    };
+
+    const fetchAvailableTasks = async () => {
+        if (!isOnline || activeOrder || showNewOrderModal) return;
+        try {
+            const res = await fetch('http://localhost:5000/api/delivery/tasks/available', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const tasks = await res.json();
+                if (tasks && tasks.length > 0) {
+                    setNewOrder(tasks[0]);
+                    setShowNewOrderModal(true);
+                } else {
+                    setNewOrder(null);
+                    setShowNewOrderModal(false);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleAcceptOrder = async () => {
+        if (!newOrder) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/delivery/tasks/${newOrder._id}/accept`, {
+                method: 'PUT',
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                await fetchActiveTask();
+                setShowNewOrderModal(false);
+                setNewOrder(null);
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleRejectOrder = () => {
+        // Technically just ignoring it so another driver can pick it up
         setShowNewOrderModal(false);
+        setNewOrder(null);
+    };
+
+    const handleStatusUpdate = async (newStatus) => {
+        if (!activeOrder) return;
+        try {
+            const res = await fetch(`http://localhost:5000/api/delivery/tasks/${activeOrder._id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({ status: newStatus })
+            });
+            if (res.ok) {
+                if (newStatus === 'delivered') {
+                    setActiveOrder(null);
+                    fetchProfile(); // update earnings immediately
+                } else {
+                    await fetchActiveTask();
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const getStatusProgress = (status) => {
-        const steps = ['accepted', 'arrived_at_restaurant', 'picked_up', 'arrived_at_customer', 'delivered'];
-        return (steps.indexOf(status) + 1) * 20;
+        const steps = ['pending', 'accepted', 'arrived_at_restaurant', 'picked_up', 'arrived_at_customer', 'delivered'];
+        const index = steps.indexOf(status);
+        return index >= 0 ? (index / (steps.length - 1)) * 100 : 0;
     };
 
     return (
@@ -75,7 +166,7 @@ const DeliveryDashboard = () => {
                             </span>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" className="sr-only peer" checked={isOnline} onChange={() => setIsOnline(!isOnline)} />
+                            <input type="checkbox" className="sr-only peer" checked={isOnline} onChange={toggleOnlineStatus} />
                             <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
                         </label>
                     </div>
@@ -84,7 +175,7 @@ const DeliveryDashboard = () => {
                 <div className="max-w-4xl mx-auto px-4 py-6">
                     {/* Map Placeholder */}
                     <div className="bg-gray-200 rounded-2xl h-64 w-full mb-6 relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/e/ec/OpenStreetMap_Logo_2011.svg')" }}></div> {/* Using generic map placeholder */}
+                        <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/e/ec/OpenStreetMap_Logo_2011.svg')" }}></div>
                         <div className="absolute inset-0 flex items-center justify-center">
                             <div className="bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 text-center">
                                 <Navigation className="w-8 h-8 text-primary mx-auto mb-2" />
@@ -95,27 +186,27 @@ const DeliveryDashboard = () => {
                         {isOnline && (
                             <div className="absolute top-4 right-4 bg-white p-2 rounded-lg shadow-md">
                                 <p className="text-xs font-bold text-gray-500">ZONE</p>
-                                <p className="text-sm font-bold text-primary">CG Road (High Demand)</p>
+                                <p className="text-sm font-bold text-primary">High Demand</p>
                             </div>
                         )}
                     </div>
 
                     {/* Stats Overview */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                        <Link to="/delivery/earnings" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-green-200 transition-colors cursor-pointer">
-                            <p className="text-gray-500 text-xs">Today's Earnings</p>
-                            <h3 className="text-xl font-bold text-dark">₹850</h3>
+                        <Link to="/earnings" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-green-200 transition-colors cursor-pointer">
+                            <p className="text-gray-500 text-xs">Total Earnings</p>
+                            <h3 className="text-xl font-bold text-dark">₹{profile?.totalEarnings || 0}</h3>
                         </Link>
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                            <p className="text-gray-500 text-xs">Orders</p>
-                            <h3 className="text-xl font-bold text-dark">12</h3>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors">
+                            <p className="text-gray-500 text-xs">Completed Orders</p>
+                            <h3 className="text-xl font-bold text-dark">{profile?.totalDeliveries || 0}</h3>
                         </div>
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                            <p className="text-gray-500 text-xs">Ride Time</p>
-                            <h3 className="text-xl font-bold text-dark">4h 30m</h3>
-                        </div>
-                        <Link to="/delivery/profile" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
-                            <p className="text-gray-500 text-xs">Profile & Ratings</p>
+                        <Link to="/history" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-purple-200 transition-colors cursor-pointer">
+                            <p className="text-gray-500 text-xs">History</p>
+                            <h3 className="text-xl font-bold text-dark">View</h3>
+                        </Link>
+                        <Link to="/profile" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
+                            <p className="text-gray-500 text-xs">Profile</p>
                             <div className="flex items-center gap-1">
                                 <span className="text-xl font-bold text-dark">4.8</span>
                                 <span className="text-yellow-500">★</span>
@@ -124,11 +215,15 @@ const DeliveryDashboard = () => {
                     </div>
 
                     {/* Active Order Card */}
-                    {activeOrder ? (
+                    {loadingTasks ? (
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center mb-8">
+                            <h3 className="text-xl font-bold text-gray-800 animate-pulse">Loading Tasks...</h3>
+                        </div>
+                    ) : activeOrder ? (
                         <div className="bg-white rounded-2xl shadow-lg border border-primary/20 overflow-hidden mb-8 animate-fadeIn">
                             <div className="bg-primary/5 p-4 flex justify-between items-center border-b border-primary/10">
                                 <div>
-                                    <h3 className="font-bold text-lg text-dark">Active Order #{activeOrder.id}</h3>
+                                    <h3 className="font-bold text-lg text-dark">Active Order</h3>
                                     <p className="text-sm text-gray-500">Est. Earnings: ₹{activeOrder.earnings}</p>
                                 </div>
                                 <span className="bg-primary text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
@@ -156,11 +251,11 @@ const DeliveryDashboard = () => {
                                         </div>
                                         <div>
                                             <p className="text-xs text-gray-500 uppercase font-bold">Pick Up</p>
-                                            <h4 className="font-bold text-lg">{activeOrder.restaurant.name}</h4>
-                                            <p className="text-gray-500 text-sm">{activeOrder.restaurant.address}</p>
+                                            <h4 className="font-bold text-lg">{activeOrder.order?.restaurant?.name || 'Restaurant'}</h4>
+                                            <p className="text-gray-500 text-sm">{activeOrder.order?.restaurant?.address || 'Restaurant Address'}</p>
                                             {['accepted', 'arrived_at_restaurant'].includes(activeOrder.status) && (
                                                 <div className="mt-2 flex gap-2">
-                                                    <Button size="sm" variant="outline" onClick={() => window.open(`https://maps.google.com/?q=${activeOrder.restaurant.address}`, '_blank')}>
+                                                    <Button size="sm" variant="outline" onClick={() => window.open(`https://maps.google.com/?q=${activeOrder.order?.restaurant?.address}`, '_blank')}>
                                                         <Navigation size={14} className="mr-1" /> Navigate
                                                     </Button>
                                                     {activeOrder.status === 'accepted' && (
@@ -186,11 +281,13 @@ const DeliveryDashboard = () => {
                                         </div>
                                         <div>
                                             <p className="text-xs text-gray-500 uppercase font-bold">Drop Off</p>
-                                            <h4 className="font-bold text-lg">{activeOrder.customer.name}</h4>
-                                            <p className="text-gray-500 text-sm">{activeOrder.customer.address}</p>
+                                            <h4 className="font-bold text-lg">{activeOrder.order?.user?.name || 'Customer'}</h4>
+                                            <p className="text-gray-500 text-sm">
+                                                {activeOrder.order?.user?.addresses?.[0]?.street || 'Customer Address'}, {activeOrder.order?.user?.addresses?.[0]?.city}
+                                            </p>
                                             {['picked_up', 'arrived_at_customer'].includes(activeOrder.status) && (
                                                 <div className="mt-2 flex gap-2 flex-wrap">
-                                                    <Button size="sm" variant="outline" onClick={() => window.open(`https://maps.google.com/?q=${activeOrder.customer.address}`, '_blank')}>
+                                                    <Button size="sm" variant="outline" onClick={() => window.open(`https://maps.google.com/?q=${activeOrder.order?.user?.addresses?.[0]?.street}`, '_blank')}>
                                                         <Navigation size={14} className="mr-1" /> Navigate
                                                     </Button>
                                                     <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50">
@@ -202,10 +299,7 @@ const DeliveryDashboard = () => {
                                                         </Button>
                                                     )}
                                                     {activeOrder.status === 'arrived_at_customer' && (
-                                                        <Button size="sm" variant="primary" className="bg-green-600 hover:bg-green-700 border-green-600" onClick={() => {
-                                                            handleStatusUpdate('delivered');
-                                                            setTimeout(() => setActiveOrder(null), 2000); // Clear order after delivery
-                                                        }}>
+                                                        <Button size="sm" variant="primary" className="bg-green-600 hover:bg-green-700 border-green-600" onClick={() => handleStatusUpdate('delivered')}>
                                                             Complete Delivery
                                                         </Button>
                                                     )}
@@ -214,25 +308,15 @@ const DeliveryDashboard = () => {
                                         </div>
                                     </div>
                                 </div>
-
-                                {/* Order Items */}
-                                <div className="bg-gray-50 p-3 rounded-lg text-sm mb-4">
-                                    <p className="font-bold mb-2">Order Items:</p>
-                                    <ul className="list-disc list-inside text-gray-600">
-                                        {activeOrder.items.map((item, idx) => (
-                                            <li key={idx}>{item.qty}x {item.name}</li>
-                                        ))}
-                                    </ul>
-                                </div>
                             </div>
                         </div>
                     ) : (
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center mb-8">
-                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
-                                <Navigation className="text-gray-400" size={32} />
+                            <div className={`w-16 h-16 ${isOnline ? 'bg-green-100 animate-pulse' : 'bg-gray-100'} rounded-full flex items-center justify-center mx-auto mb-4`}>
+                                <Navigation className={isOnline ? 'text-green-500' : 'text-gray-400'} size={32} />
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">Waiting for orders...</h3>
-                            <p className="text-gray-500 mt-2">You are online and visible to nearby restaurants.</p>
+                            <h3 className="text-xl font-bold text-gray-800">{isOnline ? 'Waiting for orders...' : 'You are offline'}</h3>
+                            <p className="text-gray-500 mt-2">{isOnline ? 'You are visible to nearby restaurants.' : 'Go online to start receiving orders.'}</p>
                         </div>
                     )}
 
@@ -250,17 +334,17 @@ const DeliveryDashboard = () => {
                 </div>
 
                 {/* New Order Modal */}
-                {showNewOrderModal && (
+                {showNewOrderModal && newOrder && (
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-4">
                         <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-slideUp md:animate-fadeIn">
                             <div className="bg-primary p-4 text-white text-center">
                                 <h3 className="font-bold text-xl animate-pulse">New Delivery Request!</h3>
-                                <p className="text-sm opacity-90">30 seconds to accept</p>
+                                <p className="text-sm opacity-90">Accept quickly before someone else picks it up</p>
                             </div>
                             <div className="p-6">
                                 <div className="text-center mb-6">
-                                    <h2 className="text-3xl font-bold text-primary">₹35.00</h2>
-                                    <p className="text-gray-500 text-sm">Est. Earning (Incl. Tips)</p>
+                                    <h2 className="text-3xl font-bold text-primary">₹{newOrder.earnings}</h2>
+                                    <p className="text-gray-500 text-sm">Est. Earning</p>
                                 </div>
                                 <div className="space-y-4 mb-8">
                                     <div className="flex justify-between items-center">
@@ -269,8 +353,8 @@ const DeliveryDashboard = () => {
                                                 <MapPin className="text-orange-600" size={20} />
                                             </div>
                                             <div className="text-left">
-                                                <p className="font-bold text-sm">Burger King</p>
-                                                <p className="text-xs text-gray-500">2.5 km away</p>
+                                                <p className="font-bold text-sm">{newOrder.order?.restaurant?.name || 'Restaurant'}</p>
+                                                <p className="text-xs text-gray-500">Pick up location</p>
                                             </div>
                                         </div>
                                     </div>
@@ -282,13 +366,13 @@ const DeliveryDashboard = () => {
                                             </div>
                                             <div className="text-left">
                                                 <p className="font-bold text-sm">Drop Location</p>
-                                                <p className="text-xs text-gray-500">5.1 km trip</p>
+                                                <p className="text-xs text-gray-500">{newOrder.order?.user?.name || 'Customer'}</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <Button variant="outline" onClick={() => setShowNewOrderModal(false)} className="justify-center border-red-200 text-red-600 hover:bg-red-50">
+                                    <Button variant="outline" onClick={handleRejectOrder} className="justify-center border-red-200 text-red-600 hover:bg-red-50">
                                         Reject
                                     </Button>
                                     <Button variant="primary" onClick={handleAcceptOrder} className="justify-center">

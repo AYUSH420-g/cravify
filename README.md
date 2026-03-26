@@ -36,7 +36,7 @@ We provide handy scripts to install all dependencies and run all 8 services conc
 **For Windows:**
 Simply double-click `run_all.bat` or run it from your terminal:
 ```bat
-call run_all.bat
+.\run_all.bat
 ```
 
 **For Linux / Mac:**
