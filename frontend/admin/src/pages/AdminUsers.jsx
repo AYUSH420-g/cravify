@@ -1,23 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { Search, Ban, CheckCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const AdminUsers = () => {
-    // Mock Data
-    const [users, setUsers] = useState([
-        { id: 1, name: 'Ayush Soni', email: 'ayush@example.com', role: 'customer', status: 'active' },
-        { id: 2, name: 'Parin Makwana', email: 'parin@example.com', role: 'restaurant_partner', status: 'active' },
-        { id: 3, name: 'Nevil Nandasana', email: 'nevil@example.com', role: 'delivery_partner', status: 'active' },
-        { id: 4, name: 'John Doe', email: 'john@example.com', role: 'customer', status: 'blocked' },
-        { id: 5, name: 'Jane Smith', email: 'jane@example.com', role: 'customer', status: 'active' },
-    ]);
+    const { token } = useAuth();
+    const [users, setUsers] = useState([]);
 
-    const toggleStatus = (id) => {
-        setUsers(users.map(user =>
-            user.id === id
-                ? { ...user, status: user.status === 'active' ? 'blocked' : 'active' }
-                : user
-        ));
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const res = await fetch('http://localhost:5000/api/admin/users', {
+                    headers: { 'x-auth-token': token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setUsers(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch users', err);
+            }
+        };
+
+        if (token) fetchUsers();
+    }, [token]);
+
+    const toggleStatus = async (id, currentStatus) => {
+        const newStatus = currentStatus === 'active' ? 'blocked' : 'active';
+        try {
+            const res = await fetch(`http://localhost:5000/api/admin/users/${id}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (res.ok) {
+                setUsers(users.map(user =>
+                    user._id === id ? { ...user, status: newStatus } : user
+                ));
+            }
+        } catch (err) {
+            console.error('Failed to toggle status', err);
+        }
     };
 
     return (
@@ -49,7 +76,7 @@ const AdminUsers = () => {
                         </thead>
                         <tbody>
                             {users.map(user => (
-                                <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                                <tr key={user._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-medium text-dark">{user.name}</td>
                                     <td className="p-4 text-gray-500">{user.email}</td>
                                     <td className="p-4">
@@ -70,7 +97,7 @@ const AdminUsers = () => {
                                     </td>
                                     <td className="p-4">
                                         <button
-                                            onClick={() => toggleStatus(user.id)}
+                                            onClick={() => toggleStatus(user._id, user.status)}
                                             className={`p-2 rounded-lg transition-colors
                                                 ${user.status === 'active'
                                                     ? 'text-red-500 hover:bg-red-50'

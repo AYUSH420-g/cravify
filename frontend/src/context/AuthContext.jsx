@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE_URL } from '../services/api';
 
 const AuthContext = createContext();
-const API_URL = 'http://localhost:5005/api/auth';
+const API_URL = `${API_BASE_URL}/auth`;
 
 export const useAuth = () => useContext(AuthContext);
 

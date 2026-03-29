@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
 const authMiddleware = require('../middleware/auth');
+const adminController = require('../controllers/adminController');
 
 // Middleware to check if user is admin
 const adminMiddleware = async (req, res, next) => {
@@ -11,39 +11,36 @@ const adminMiddleware = async (req, res, next) => {
     next();
 };
 
-// @route   GET api/admin/stats
-// @desc    Get system-wide statistics
-// @access  Admin
-router.get('/stats', authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-        const userCount = await User.countDocuments({ role: 'customer' });
-        const partnerCount = await User.countDocuments({ role: 'restaurant_partner' });
-        const deliveryCount = await User.countDocuments({ role: 'delivery_partner' });
+// Protect all admin routes
+router.use(authMiddleware, adminMiddleware);
 
-        res.json({
-            users: userCount,
-            restaurants: partnerCount,
-            riders: deliveryCount,
-            orders: 0, // Placeholder until Order model is ready
-            revenue: 0 // Placeholder
-        });
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
-});
+// Dashboard Statistics
+router.get('/stats', adminController.getDashboardStats);
 
-// @route   GET api/admin/users
-// @desc    Get all users
-// @access  Admin
-router.get('/users', authMiddleware, adminMiddleware, async (req, res) => {
-    try {
-        const users = await User.find().select('-password');
-        res.json(users);
-    } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
-    }
-});
+// User Management
+router.get('/users', adminController.getUsers);
+router.put('/users/:id/status', adminController.toggleUserStatus);
+
+// Restaurant Partner Management
+router.get('/restaurants', adminController.getRestaurants);
+router.put('/restaurants/:id/status', adminController.updateRestaurantStatus);
+
+// Delivery Partner Management 
+router.get('/delivery-partners', adminController.getDeliveryPartners);
+router.put('/delivery-partners/:id/status', adminController.updateDeliveryPartnerStatus);
+
+// Order Monitoring
+router.get('/orders', adminController.getOrders);
+router.put('/orders/:id/cancel', adminController.cancelOrder);
+
+// Platform Settings
+router.get('/settings', adminController.getSettings);
+router.put('/settings', adminController.updateSettings);
+
+// Promotional Campaigns
+router.get('/promos', adminController.getPromos);
+router.post('/promos', adminController.createPromo);
+router.put('/promos/:id/toggle', adminController.togglePromoStatus);
+router.delete('/promos/:id', adminController.deletePromo);
 
 module.exports = router;

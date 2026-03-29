@@ -1,22 +1,49 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { Search, Check, X, MapPin } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const AdminRestaurants = () => {
-    // Mock Data
-    const [restaurants, setRestaurants] = useState([
-        { id: 1, name: 'Burger King', location: 'New York, USA', status: 'active', rating: 4.5 },
-        { id: 2, name: 'Pizza Hut', location: 'Brooklyn, USA', status: 'pending', rating: 0 },
-        { id: 3, name: 'Sushi Place', location: 'Manhattan, USA', status: 'pending', rating: 0 },
-        { id: 4, name: 'Taco Bell', location: 'Queens, USA', status: 'active', rating: 4.2 },
-    ]);
+    const { token } = useAuth();
+    const [restaurants, setRestaurants] = useState([]);
 
-    const handleAction = (id, action) => {
-        setRestaurants(restaurants.map(rest =>
-            rest.id === id
-                ? { ...rest, status: action === 'approve' ? 'active' : 'rejected' }
-                : rest
-        ));
+    useEffect(() => {
+        const fetchRestaurants = async () => {
+            try {
+                const res = await fetch('http://localhost:5000/api/admin/restaurants', {
+                    headers: { 'x-auth-token': token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setRestaurants(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch restaurants', err);
+            }
+        };
+        if (token) fetchRestaurants();
+    }, [token]);
+
+    const handleAction = async (id, action) => {
+        const newStatus = action === 'approve' ? 'approved' : 'rejected';
+        try {
+            const res = await fetch(`http://localhost:5000/api/admin/restaurants/${id}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({ applicationStatus: newStatus })
+            });
+
+            if (res.ok) {
+                setRestaurants(restaurants.map(rest =>
+                    rest._id === id ? { ...rest, applicationStatus: newStatus } : rest
+                ));
+            }
+        } catch (err) {
+            console.error('Failed to update status', err);
+        }
     };
 
     return (
@@ -37,34 +64,34 @@ const AdminRestaurants = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {restaurants.map(rest => (
-                        <div key={rest.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <div key={rest._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                             <div className="flex justify-between items-start mb-4">
                                 <div>
                                     <h3 className="font-bold text-lg text-dark">{rest.name}</h3>
                                     <div className="flex items-center gap-1 text-muted text-sm mt-1">
                                         <MapPin size={14} />
-                                        <span>{rest.location}</span>
+                                        <span>{rest.addresses && rest.addresses.length > 0 ? rest.addresses[0].city : 'Location Not Set'}</span>
                                     </div>
                                 </div>
                                 <span className={`px-2 py-1 rounded-full text-xs font-semibold
-                                    ${rest.status === 'active' ? 'bg-green-100 text-green-600' :
-                                        rest.status === 'pending' ? 'bg-orange-100 text-orange-600' :
+                                    ${rest.applicationStatus === 'approved' ? 'bg-green-100 text-green-600' :
+                                        rest.applicationStatus === 'pending' ? 'bg-orange-100 text-orange-600' :
                                             'bg-red-100 text-red-600'}`}>
-                                    {rest.status.toUpperCase()}
+                                    {(rest.applicationStatus || 'pending').toUpperCase()}
                                 </span>
                             </div>
 
                             <div className="flex gap-3 mt-6">
-                                {rest.status === 'pending' ? (
+                                {rest.applicationStatus === 'pending' ? (
                                     <>
                                         <button
-                                            onClick={() => handleAction(rest.id, 'approve')}
+                                            onClick={() => handleAction(rest._id, 'approve')}
                                             className="flex-1 bg-green-50 text-green-600 font-medium py-2 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-2"
                                         >
                                             <Check size={18} /> Approve
                                         </button>
                                         <button
-                                            onClick={() => handleAction(rest.id, 'reject')}
+                                            onClick={() => handleAction(rest._id, 'reject')}
                                             className="flex-1 bg-red-50 text-red-600 font-medium py-2 rounded-lg hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
                                         >
                                             <X size={18} /> Reject

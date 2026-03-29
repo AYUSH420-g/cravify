@@ -3,6 +3,7 @@ import MainLayout from '../layouts/MainLayout';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { Users, Store, Bike, DollarSign } from 'lucide-react';
+import { adminAPI } from '../services/api';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
@@ -20,16 +21,24 @@ const AdminDashboard = () => {
     const { user, token, loading } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState({
-        users: 1250,
-        restaurants: 45,
-        riders: 32,
-        revenue: 15400
+        users: 0,
+        restaurants: 0,
+        riders: 0,
+        revenue: 0
     });
 
     useEffect(() => {
-        // Mock Data Mode - skipping API fetch
-        // In real app, we would fetch here
-    }, []);
+        const fetchStats = async () => {
+            try {
+                const data = await adminAPI.getStats();
+                setStats(data);
+            } catch (err) {
+                console.error('Failed to fetch dashboard stats', err);
+            }
+        };
+
+        if (token) fetchStats();
+    }, [token]);
 
     if (loading) return <div>Loading...</div>;
 
@@ -85,6 +94,14 @@ const AdminDashboard = () => {
                         </div>
                         <h3 className="font-bold text-lg text-dark mb-1">System Settings</h3>
                         <p className="text-sm text-gray-500">Configure fees and platform modes.</p>
+                    </div>
+
+                    <div onClick={() => navigate('/admin/offers')} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 cursor-pointer hover:shadow-md transition-all group">
+                        <div className="bg-red-50 w-12 h-12 rounded-lg flex items-center justify-center mb-4 group-hover:bg-red-100 transition-colors">
+                            <DollarSign size={24} className="text-red-600" />
+                        </div>
+                        <h3 className="font-bold text-lg text-dark mb-1">Admin Promos</h3>
+                        <p className="text-sm text-gray-500">Manage campaign discount codes.</p>
                     </div>
                 </div>
 

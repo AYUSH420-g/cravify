@@ -16,8 +16,18 @@ const UserSchema = new mongoose.Schema({
         enum: ['customer', 'restaurant_partner', 'delivery_partner', 'admin'],
         default: 'customer'
     },
+    status: {
+        type: String,
+        enum: ['active', 'blocked'],
+        default: 'active'
+    },
     // For partners
-    isVerified: { type: Boolean, default: false }
+    isVerified: { type: Boolean, default: false },
+    applicationStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);

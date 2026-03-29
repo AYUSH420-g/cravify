@@ -1,46 +1,58 @@
 #!/bin/bash
 echo "==================================================="
-echo "Welcome to Cravify!"
-echo "Installing dependencies for all 8 services sequentially..."
-echo "This visually prevents a console mess before starting the servers."
+echo "🍕 Welcome to Cravify!"
 echo "==================================================="
+echo ""
 
+# -------------------------------------------------------
+# Step 1: Install dependencies
+# -------------------------------------------------------
 dirs=(
-  "frontend/admin"
-  "backend/admin"
-  "frontend/customer"
-  "backend/customer"
-  "frontend/delivery"
-  "backend/delivery"
-  "frontend/restaurant"
-  "backend/restaurant"
+  "backend"
+  "frontend"
 )
 
 i=1
+total=${#dirs[@]}
 for dir in "${dirs[@]}"; do
-  echo "[$i/8] Installing dependencies for $dir..."
-  # Run in a subshell so parent script path is unaffected
+  echo "[$i/$total] Installing dependencies for $dir..."
   (cd "$dir" && npm install)
   i=$((i+1))
 done
 
+# -------------------------------------------------------
+# Step 2: Seed database (optional — only if no data exists)
+# -------------------------------------------------------
 echo ""
 echo "==================================================="
-echo "All dependencies installed!"
-echo "Starting all 8 services using 'npx concurrently' within this SINGLE terminal..."
-echo "Logs will be neatly color coded and labeled per service!"
-echo "Press Ctrl+C at any time to seamlessly STOP all services."
+read -p "🌱 Seed the database with demo data? (y/N): " seed_choice
+if [[ "$seed_choice" == "y" || "$seed_choice" == "Y" ]]; then
+  echo "Seeding database..."
+  (cd backend && node seed_data.js)
+fi
+
+# -------------------------------------------------------
+# Step 3: Start services
+# -------------------------------------------------------
+echo ""
+echo "==================================================="
+echo "✅ All dependencies installed!"
+echo "Starting Backend (port 5005) + Frontend (port 5173)..."
+echo "Logs are color coded and labeled per service."
+echo "Press Ctrl+C at any time to STOP all services."
+echo "==================================================="
+echo ""
+echo "📋 Login Credentials:"
+echo "   Admin:    admin@cravify.com   / admin123"
+echo "   Customer: rahul@example.com   / password123"
+echo "   Vendor:   vendor1@example.com / password123"
+echo "   Rider:    rider1@example.com  / password123"
+echo ""
 echo "==================================================="
 
-# Utilize concurrently via npx to elegantly route parallel logs
-npx concurrently \
-  --names "F-Admin,B-Admin,F-Customer,B-Customer,F-Delivery,B-Delivery,F-Restaurant,B-Restaurant" \
-  --prefix-colors "blue,green,magenta,yellow,cyan,white,gray,red" \
-  "cd frontend/admin && npm run dev" \
-  "cd backend/admin && npm run dev" \
-  "cd frontend/customer && npm run dev" \
-  "cd backend/customer && npm run dev" \
-  "cd frontend/delivery && npm run dev" \
-  "cd backend/delivery && npm run dev" \
-  "cd frontend/restaurant && npm run dev" \
-  "cd backend/restaurant && npm run dev"
+# Start both services with concurrently
+npx -y concurrently \
+  --names "Backend,Frontend" \
+  --prefix-colors "green,blue" \
+  "cd backend && npm run dev" \
+  "cd frontend && npm run dev"

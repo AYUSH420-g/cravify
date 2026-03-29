@@ -13,6 +13,7 @@ const MenuItemSchema = new mongoose.Schema({
 const RestaurantSchema = new mongoose.Schema({
     name: { type: String, required: true },
     image: { type: String, required: true },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     cuisines: [String],
     rating: { type: Number, default: 0 },
     deliveryTime: String,

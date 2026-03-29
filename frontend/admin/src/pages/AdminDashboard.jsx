@@ -20,16 +20,29 @@ const AdminDashboard = () => {
     const { user, token, loading } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState({
-        users: 1250,
-        restaurants: 45,
-        riders: 32,
-        revenue: 15400
+        users: 0,
+        restaurants: 0,
+        riders: 0,
+        revenue: 0
     });
 
     useEffect(() => {
-        // Mock Data Mode - skipping API fetch
-        // In real app, we would fetch here
-    }, []);
+        const fetchStats = async () => {
+            try {
+                const res = await fetch('http://localhost:5000/api/admin/stats', {
+                    headers: { 'x-auth-token': token }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    setStats(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch dashboard stats', err);
+            }
+        };
+
+        if (token) fetchStats();
+    }, [token]);
 
     if (loading) return <div>Loading...</div>;
 

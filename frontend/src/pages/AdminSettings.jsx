@@ -1,30 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { Save, RefreshCw } from 'lucide-react';
 import Button from '../components/Button';
+import { useAuth } from '../context/AuthContext';
+import { adminAPI } from '../services/api';
 
 const AdminSettings = () => {
+    const { token } = useAuth();
     const [settings, setSettings] = useState({
-        platformFee: '5',
-        referralBonus: '10',
-        supportEmail: 'support@cravify.com',
+        platformFee: 5,
+        referralBonus: 10,
+        supportEmail: '',
         maintenanceMode: false,
         autoApproveRestaurants: false
     });
+    const [saveStatus, setSaveStatus] = useState('');
+
+    useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const data = await adminAPI.getSettings();
+                setSettings(data);
+            } catch (err) {
+                console.error('Failed to fetch settings', err);
+            }
+        };
+        if (token) fetchSettings();
+    }, [token]);
 
     const handleChange = (e) => {
         const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
         setSettings({ ...settings, [e.target.name]: value });
     };
 
-    const handleSave = () => {
-        alert('Settings Saved Successfully (Mock)!');
+    const handleSave = async () => {
+        try {
+            await adminAPI.updateSettings(settings);
+            setSaveStatus('success');
+            setTimeout(() => setSaveStatus(''), 3000);
+        } catch (err) {
+            console.error('Failed to update settings', err);
+            setSaveStatus('error');
+            setTimeout(() => setSaveStatus(''), 3000);
+        }
     };
 
     return (
         <MainLayout>
             <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <h1 className="text-3xl font-bold text-dark mb-8">System Settings</h1>
+
+                {saveStatus === 'success' && (
+                    <div className="bg-green-50 text-green-700 px-4 py-3 rounded-lg mb-6 border border-green-200">
+                        ✅ Settings saved successfully!
+                    </div>
+                )}
+                {saveStatus === 'error' && (
+                    <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-6 border border-red-200">
+                        ❌ Failed to save settings. Please try again.
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 space-y-8">
 
@@ -43,7 +78,7 @@ const AdminSettings = () => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Referral Bonus Amount ($)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Referral Bonus Amount (₹)</label>
                                 <input
                                     type="number"
                                     name="referralBonus"
