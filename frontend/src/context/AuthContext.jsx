@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { API_BASE_URL } from '../services/api';
 
 const AuthContext = createContext();
+const API_URL = `${API_BASE_URL}/auth`;
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -11,68 +13,56 @@ export const AuthProvider = ({ children }) => {
 
     useEffect(() => {
         if (token) {
-            // Validate token and get user
             fetchUser(token);
         } else {
             setLoading(false);
         }
     }, [token]);
 
-    // MOCK AUTH IMPLEMENTATION
     const fetchUser = async (authToken) => {
-        // Simulate API delay
-        setTimeout(() => {
-            if (authToken === 'mock-admin-token') {
-                setUser({ id: '1', name: 'Super Admin', email: 'admin@cravify.com', role: 'admin' });
-            } else if (authToken.startsWith('mock-token-')) {
-                // Retrieve stored user
-                try {
-                    const storedUser = localStorage.getItem('currentUser');
-                    if (storedUser) {
-                        setUser(JSON.parse(storedUser));
-                    } else {
-                        // Fallback default
-                        setUser({ id: '2', name: 'Test User', email: 'user@test.com', role: 'customer' });
-                    }
-                } catch (e) {
-                    console.error("Failed to parse user", e);
-                    setUser(null);
-                }
+        try {
+            const res = await fetch(`${API_URL}/me`, {
+                headers: { 'x-auth-token': authToken }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setUser(data);
             } else {
-                setLoading(false);
+                // Token invalid — clear it
+                localStorage.removeItem('token');
+                setToken(null);
+                setUser(null);
             }
+        } catch (err) {
+            console.error('Failed to fetch user:', err);
+            localStorage.removeItem('token');
+            setToken(null);
+            setUser(null);
+        } finally {
             setLoading(false);
-        }, 500);
+        }
     };
 
     const login = async (email, password) => {
-        // Mock Login Logic
-        if (email === 'admin@cravify.com' && password === 'admin123') {
-            const token = 'mock-admin-token';
-            const user = { id: '1', name: 'Super Admin', email: 'admin@cravify.com', role: 'admin' };
-            localStorage.setItem('token', token);
-            localStorage.setItem('currentUser', JSON.stringify(user));
-            setToken(token);
-            setUser(user);
-            return { success: true, user };
-        }
-
-        // Dynamic Login for registered mock users
         try {
-            const storedUser = localStorage.getItem('mockUser'); // Keep checking mockUser for the just-signed-up user fallback
-            if (storedUser) {
-                const user = JSON.parse(storedUser);
-                if (email === user.email && password === 'password') {
-                    const token = `mock-token-${user.role}`;
-                    localStorage.setItem('token', token);
-                    localStorage.setItem('currentUser', JSON.stringify(user));
-                    setToken(token);
-                    setUser(user);
-                    return { success: true, user };
-                }
+            const res = await fetch(`${API_URL}/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                localStorage.setItem('token', data.token);
+                setToken(data.token);
+                setUser(data.user);
+                return { success: true, user: data.user };
+            } else {
+                return { success: false, message: data.message || 'Login failed' };
             }
-        } catch (e) {
-            console.error("Failed to parse mock user during login", e);
+        } catch (err) {
+            console.error('Login error:', err);
+            return { success: false, message: 'Network error. Is the backend running?' };
         }
 
         if (email === 'user@test.com' && password === '123456') {
@@ -116,24 +106,30 @@ export const AuthProvider = ({ children }) => {
     };
 
     const register = async (name, email, password, role = 'customer') => {
-        // Mock Register
-        const token = `mock-token-${role}`;
-        const user = { id: Date.now().toString(), name, email, role };
+        try {
+            const res = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, email, password, role })
+            });
+            const data = await res.json();
 
-        // Store mock user so we can login with them later
-        localStorage.setItem('mockUser', JSON.stringify(user));
-        // Also set as current user
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        localStorage.setItem('token', token);
-
-        setToken(token);
-        setUser(user);
-        return { success: true, user };
+            if (res.ok) {
+                localStorage.setItem('token', data.token);
+                setToken(data.token);
+                setUser(data.user);
+                return { success: true, user: data.user };
+            } else {
+                return { success: false, message: data.message || 'Registration failed' };
+            }
+        } catch (err) {
+            console.error('Registration error:', err);
+            return { success: false, message: 'Network error. Is the backend running?' };
+        }
     };
 
     const logout = () => {
         localStorage.removeItem('token');
-        localStorage.removeItem('currentUser');
         setToken(null);
         setUser(null);
     };

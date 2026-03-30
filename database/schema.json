@@ -1,0 +1,168 @@
+{
+  "schemaVersion": "1.0",
+  "database": "cravify",
+  "engine": "MongoDB (Mongoose ODM)",
+  "description": "Cravify Food Delivery Platform - Database Schema",
+  "collections": {
+    "users": {
+      "description": "All platform users — customers, restaurant partners, delivery partners, and admins",
+      "fields": {
+        "name": { "type": "String", "required": true },
+        "email": { "type": "String", "required": true, "unique": true },
+        "password": { "type": "String", "required": true, "note": "bcrypt hashed" },
+        "phone": { "type": "String", "required": false },
+        "addresses": {
+          "type": "Array<Object>",
+          "schema": {
+            "street": { "type": "String" },
+            "city": { "type": "String" },
+            "zip": { "type": "String" },
+            "type": { "type": "String", "enum": ["Home", "Work", "Other"], "default": "Home" }
+          }
+        },
+        "role": { "type": "String", "enum": ["customer", "restaurant_partner", "delivery_partner", "admin"], "default": "customer" },
+        "status": { "type": "String", "enum": ["active", "blocked"], "default": "active" },
+        "isVerified": { "type": "Boolean", "default": false },
+        "applicationStatus": { "type": "String", "enum": ["pending", "approved", "rejected"], "default": "pending" }
+      },
+      "timestamps": true,
+      "relationships": {
+        "restaurants": "One-to-One (owner) — A restaurant_partner user owns one restaurant",
+        "orders": "One-to-Many — A customer user has many orders",
+        "deliveryProfiles": "One-to-One — A delivery_partner user has one delivery profile",
+        "deliveryTasks": "One-to-Many — A delivery_partner handles many delivery tasks"
+      }
+    },
+
+    "restaurants": {
+      "description": "Restaurant profiles with embedded menus",
+      "fields": {
+        "name": { "type": "String", "required": true },
+        "image": { "type": "String", "required": true },
+        "owner": { "type": "ObjectId", "ref": "User", "note": "The vendor user who owns this restaurant" },
+        "cuisines": { "type": "Array<String>" },
+        "rating": { "type": "Number", "default": 0 },
+        "deliveryTime": { "type": "String" },
+        "priceForTwo": { "type": "String" },
+        "offer": { "type": "String" },
+        "address": { "type": "String" },
+        "menu": {
+          "type": "Array<Object>",
+          "schema": {
+            "name": { "type": "String", "required": true },
+            "description": { "type": "String" },
+            "price": { "type": "Number", "required": true },
+            "image": { "type": "String" },
+            "isVeg": { "type": "Boolean", "default": true },
+            "category": { "type": "String" },
+            "isBestseller": { "type": "Boolean", "default": false }
+          }
+        }
+      },
+      "timestamps": true,
+      "relationships": {
+        "owner": "Many-to-One — Belongs to a User (restaurant_partner)",
+        "orders": "One-to-Many — Has many orders"
+      }
+    },
+
+    "orders": {
+      "description": "Customer food orders",
+      "fields": {
+        "user": { "type": "ObjectId", "ref": "User", "required": true },
+        "restaurant": { "type": "ObjectId", "ref": "Restaurant", "required": true },
+        "items": {
+          "type": "Array<Object>",
+          "schema": {
+            "name": { "type": "String", "required": true },
+            "quantity": { "type": "Number", "required": true },
+            "price": { "type": "Number", "required": true }
+          }
+        },
+        "totalAmount": { "type": "Number", "required": true },
+        "status": { "type": "String", "enum": ["Placed", "Preparing", "OutForDelivery", "Delivered", "Cancelled"], "default": "Placed" },
+        "deliveryAddress": {
+          "type": "Object",
+          "schema": {
+            "street": { "type": "String" },
+            "city": { "type": "String" },
+            "zip": { "type": "String" }
+          }
+        },
+        "paymentMethod": { "type": "String", "enum": ["Card", "UPI", "COD"], "default": "Card" }
+      },
+      "timestamps": true,
+      "relationships": {
+        "user": "Many-to-One — Belongs to a User (customer)",
+        "restaurant": "Many-to-One — Belongs to a Restaurant",
+        "deliveryTask": "One-to-One — Has one DeliveryTask"
+      }
+    },
+
+    "deliveryprofiles": {
+      "description": "Extended profile data for delivery partners",
+      "fields": {
+        "user": { "type": "ObjectId", "ref": "User", "required": true, "unique": true },
+        "isOnline": { "type": "Boolean", "default": false },
+        "currentLocation": {
+          "type": "Object",
+          "schema": {
+            "lat": { "type": "Number", "default": 23.0225 },
+            "lng": { "type": "Number", "default": 72.5714 }
+          }
+        },
+        "totalEarnings": { "type": "Number", "default": 0 },
+        "totalDeliveries": { "type": "Number", "default": 0 }
+      },
+      "timestamps": true,
+      "relationships": {
+        "user": "One-to-One — Belongs to a User (delivery_partner)"
+      }
+    },
+
+    "deliverytasks": {
+      "description": "Delivery task assignments linking orders to delivery partners",
+      "fields": {
+        "order": { "type": "ObjectId", "ref": "Order", "required": true, "unique": true },
+        "deliveryPartner": { "type": "ObjectId", "ref": "User" },
+        "status": { "type": "String", "enum": ["pending", "accepted", "arrived_at_restaurant", "picked_up", "arrived_at_customer", "delivered", "cancelled"], "default": "pending" },
+        "earnings": { "type": "Number", "required": true, "default": 0 }
+      },
+      "timestamps": true,
+      "relationships": {
+        "order": "One-to-One — Belongs to an Order",
+        "deliveryPartner": "Many-to-One — Assigned to a User (delivery_partner)"
+      }
+    },
+
+    "promos": {
+      "description": "Promotional discount codes",
+      "fields": {
+        "code": { "type": "String", "required": true, "unique": true, "uppercase": true },
+        "description": { "type": "String", "required": true },
+        "discountType": { "type": "String", "enum": ["percentage", "fixed"], "default": "percentage" },
+        "discountValue": { "type": "Number", "required": true },
+        "minOrderValue": { "type": "Number", "default": 0 },
+        "maxDiscountValue": { "type": "Number", "default": null },
+        "isActive": { "type": "Boolean", "default": true },
+        "expiryDate": { "type": "Date", "required": true }
+      },
+      "timestamps": true,
+      "relationships": {}
+    },
+
+    "settings": {
+      "description": "Platform-wide configuration (singleton document)",
+      "fields": {
+        "singletonId": { "type": "String", "default": "admin_config", "unique": true },
+        "platformFee": { "type": "Number", "default": 5 },
+        "referralBonus": { "type": "Number", "default": 10 },
+        "supportEmail": { "type": "String", "default": "support@cravify.com" },
+        "maintenanceMode": { "type": "Boolean", "default": false },
+        "autoApproveRestaurants": { "type": "Boolean", "default": false }
+      },
+      "timestamps": true,
+      "relationships": {}
+    }
+  }
+}

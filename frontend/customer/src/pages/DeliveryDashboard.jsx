@@ -79,6 +79,17 @@ const DeliveryDashboard = () => {
         return (steps.indexOf(status) + 1) * 20;
     };
 
+    const getMapQuery = () => {
+        if (activeOrder) {
+            if (['accepted', 'arrived_at_restaurant'].includes(activeOrder.status) && activeOrder.restaurant) {
+                return `${activeOrder.restaurant.lat || ''},${activeOrder.restaurant.lng || ''} ${activeOrder.restaurant.address}`;
+            } else if (activeOrder.customer && activeOrder.customer.address) {
+                return activeOrder.customer.address;
+            }
+        }
+        return `Ahmedabad, Gujarat`; // Default 
+    };
+
     return (
         <MainLayout>
             <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
@@ -100,16 +111,17 @@ const DeliveryDashboard = () => {
 
                 <div className="max-w-4xl mx-auto px-4 py-6">
                     {/* Map Placeholder */}
-                    <div className="bg-gray-200 rounded-2xl h-64 w-full mb-6 relative overflow-hidden group">
-                        <div className="absolute inset-0 bg-cover bg-center opacity-60" style={{ backgroundImage: "url('https://upload.wikimedia.org/wikipedia/commons/e/ec/OpenStreetMap_Logo_2011.svg')" }}></div> {/* Using generic map placeholder */}
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="bg-white/90 backdrop-blur-sm p-4 rounded-xl shadow-lg border border-gray-200 text-center">
-                                <Navigation className="w-8 h-8 text-primary mx-auto mb-2" />
-                                <p className="font-bold text-gray-800">Navigation Map</p>
-                                <p className="text-xs text-gray-500">Ahmedabad, Gujarat</p>
-                            </div>
-                        </div>
-                        {isOnline && (
+                    <div className="bg-gray-200 rounded-2xl h-64 w-full mb-6 relative overflow-hidden group shadow-inner border border-gray-200">
+                        <iframe 
+                            width="100%" 
+                            height="100%" 
+                            frameBorder="0" 
+                            style={{ border: 0 }} 
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(getMapQuery())}&z=14&output=embed`} 
+                            allowFullScreen
+                            title="Dynamic Navigation Map"
+                        ></iframe>
+                        {isOnline && !activeOrder && (
                             <div className="absolute top-4 right-4 bg-white p-2 rounded-lg shadow-md">
                                 <p className="text-xs font-bold text-gray-500">ZONE</p>
                                 <p className="text-sm font-bold text-primary">CG Road (High Demand)</p>

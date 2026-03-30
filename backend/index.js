@@ -14,22 +14,22 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
 app.use('/api/delivery', require('./routes/delivery.routes'));
+app.use('/api/customer', require('./routes/customer.routes'));
+app.use('/api/vendor', require('./routes/vendor.routes'));
 
 app.get('/', (req, res) => {
     res.send('Cravify API is running');
 });
 
 // Database Connection
-const clientOptions = { serverApi: { version: '1', strict: true, deprecationErrors: true } };
-
 async function connectDB() {
     try {
-        await mongoose.connect(process.env.MONGODB_URI, clientOptions);
+        await mongoose.connect(process.env.MONGODB_URI);
         console.log('MongoDB Connected');
     } catch (err) {
-        console.log('MongoDB Connection Error:', err);
-        // Exit process with failure
-        process.exit(1);
+        console.log('MongoDB Connection Error:', err.message);
+        // Don't exit — allow nodemon to retry on file change
+        console.log('Tip: Make sure MongoDB is running (local) or Atlas URI is correct (.env)');
     }
 }
 

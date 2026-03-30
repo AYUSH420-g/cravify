@@ -1,24 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { Search, Ban, CheckCircle } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { adminAPI } from '../services/api';
 
 const AdminUsers = () => {
-    // Mock Data
-    const [users, setUsers] = useState([
-        { id: 1, name: 'Ayush Soni', email: 'ayush@example.com', role: 'customer', status: 'active' },
-        { id: 2, name: 'Parin Makwana', email: 'parin@example.com', role: 'restaurant_partner', status: 'active' },
-        { id: 3, name: 'Nevil Nandasana', email: 'nevil@example.com', role: 'delivery_partner', status: 'active' },
-        { id: 4, name: 'John Doe', email: 'john@example.com', role: 'customer', status: 'blocked' },
-        { id: 5, name: 'Jane Smith', email: 'jane@example.com', role: 'customer', status: 'active' },
-    ]);
+    const { token } = useAuth();
+    const [users, setUsers] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
-    const toggleStatus = (id) => {
-        setUsers(users.map(user =>
-            user.id === id
-                ? { ...user, status: user.status === 'active' ? 'blocked' : 'active' }
-                : user
-        ));
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const data = await adminAPI.getUsers();
+                setUsers(data);
+            } catch (err) {
+                console.error('Failed to fetch users', err);
+            }
+        };
+
+        if (token) fetchUsers();
+    }, [token]);
+
+    const toggleStatus = async (id, currentStatus) => {
+        const newStatus = currentStatus === 'active' ? 'blocked' : 'active';
+        try {
+            await adminAPI.toggleUserStatus(id, newStatus);
+            setUsers(users.map(user =>
+                user._id === id ? { ...user, status: newStatus } : user
+            ));
+        } catch (err) {
+            console.error('Failed to toggle status', err);
+        }
     };
+
+    // Filter users by search term
+    const filteredUsers = users.filter(user =>
+        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
         <MainLayout>
@@ -30,6 +50,8 @@ const AdminUsers = () => {
                         <input
                             type="text"
                             placeholder="Search users..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
                             className="bg-white border border-gray-200 pl-10 pr-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20"
                         />
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" size={18} />
@@ -48,8 +70,8 @@ const AdminUsers = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {users.map(user => (
-                                <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            {filteredUsers.map(user => (
+                                <tr key={user._id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                     <td className="p-4 font-medium text-dark">{user.name}</td>
                                     <td className="p-4 text-gray-500">{user.email}</td>
                                     <td className="p-4">
@@ -70,7 +92,7 @@ const AdminUsers = () => {
                                     </td>
                                     <td className="p-4">
                                         <button
-                                            onClick={() => toggleStatus(user.id)}
+                                            onClick={() => toggleStatus(user._id, user.status)}
                                             className={`p-2 rounded-lg transition-colors
                                                 ${user.status === 'active'
                                                     ? 'text-red-500 hover:bg-red-50'
@@ -82,6 +104,11 @@ const AdminUsers = () => {
                                     </td>
                                 </tr>
                             ))}
+                            {filteredUsers.length === 0 && (
+                                <tr>
+                                    <td colSpan="5" className="p-8 text-center text-gray-500">No users found.</td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
