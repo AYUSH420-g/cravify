@@ -3,8 +3,12 @@ import MainLayout from '../layouts/MainLayout';
 import { ChevronLeft, Star, Clock, Shield, MapPin, Settings, LogOut, FileText, Bike } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Button from '../components/Button';
+import { getDeliveryStats } from '../utils/deliveryState';
 
 const DeliveryProfile = () => {
+    const stats = getDeliveryStats();
+    const dynamicRatings = 124 + Math.floor(stats.ordersCount / 2);
+    const dynamicAcceptance = Math.min(100, 95 + Math.floor(stats.ordersCount / 5));
     return (
         <MainLayout>
             <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
@@ -29,7 +33,7 @@ const DeliveryProfile = () => {
                             <div className="flex items-center gap-1 text-yellow-500 mt-1">
                                 <Star size={16} fill="currentColor" />
                                 <span className="font-bold">4.8</span>
-                                <span className="text-gray-400 text-xs">(124 ratings)</span>
+                                <span className="text-gray-400 text-xs">({dynamicRatings} ratings)</span>
                             </div>
                         </div>
                     </div>
@@ -40,7 +44,7 @@ const DeliveryProfile = () => {
                             <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-2">
                                 <CheckCircleIcon />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-800">98%</h3>
+                            <h3 className="text-2xl font-bold text-gray-800">{dynamicAcceptance}%</h3>
                             <p className="text-xs text-gray-500">Order Acceptance</p>
                         </div>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 text-center">

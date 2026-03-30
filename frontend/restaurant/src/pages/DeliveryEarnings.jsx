@@ -2,9 +2,18 @@ import React, { useState } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import { ChevronLeft, TrendingUp, Calendar, Wallet, Award, CheckCircle, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getDeliveryStats, formatRideTime } from '../utils/deliveryState';
 
 const DeliveryEarnings = () => {
     const [timeframe, setTimeframe] = useState('weekly'); // daily, weekly, monthly
+    const stats = getDeliveryStats();
+    
+    // Dynamically calculate mock UI values using the current total persistent state
+    const displayTotal = stats.totalEarnings + stats.todaysEarnings;
+    const displayDeliveries = stats.totalDeliveries + stats.ordersCount;
+    const displayTips = stats.totalTips + (stats.ordersCount * 12); // Simulate random tip accrual
+    const displayRideMinutes = stats.totalRideTimeMinutes + stats.rideTimeMinutes;
+
 
     return (
         <MainLayout>
@@ -22,21 +31,21 @@ const DeliveryEarnings = () => {
                     {/* Total Earning Card */}
                     <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-2xl p-6 text-white shadow-lg mb-6">
                         <p className="opacity-90 mb-1">Total Earnings (This Week)</p>
-                        <h2 className="text-4xl font-bold mb-4">₹5,240.50</h2>
+                        <h2 className="text-4xl font-bold mb-4">₹{displayTotal.toFixed(2)}</h2>
                         <div className="flex gap-4 text-sm bg-white/20 p-3 rounded-xl backdrop-blur-sm">
                             <div>
                                 <p className="opacity-80">Orders</p>
-                                <p className="font-bold">42</p>
+                                <p className="font-bold">{displayDeliveries}</p>
                             </div>
                             <div className="w-px bg-white/30"></div>
                             <div>
                                 <p className="opacity-80">Tips</p>
-                                <p className="font-bold">₹450</p>
+                                <p className="font-bold">₹{displayTips}</p>
                             </div>
                             <div className="w-px bg-white/30"></div>
                             <div>
                                 <p className="opacity-80">Login Hrs</p>
-                                <p className="font-bold">28h</p>
+                                <p className="font-bold">{formatRideTime(displayRideMinutes)}</p>
                             </div>
                         </div>
                     </div>
@@ -84,26 +93,33 @@ const DeliveryEarnings = () => {
                         </div>
                     </div>
 
-                    {/* Recent Payouts */}
-                    <h3 className="font-bold text-lg mb-4">Recent Payouts</h3>
+                    {/* Past Deliveries */}
+                    <h3 className="font-bold text-lg mb-4">Past Deliveries (Today)</h3>
                     <div className="space-y-4">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 bg-green-50 rounded-lg text-green-600">
-                                        <Wallet size={20} />
+                        {stats.pastDeliveries && stats.pastDeliveries.length > 0 ? (
+                            stats.pastDeliveries.map((delivery, i) => (
+                                <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center animate-fadeIn">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-green-50 rounded-lg text-green-600">
+                                            <CheckCircle size={20} />
+                                        </div>
+                                        <div>
+                                            <h4 className="font-bold text-dark">{delivery.restaurant}</h4>
+                                            <p className="text-xs text-gray-500">Order {delivery.id}</p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-dark">Weekly Payout</h4>
-                                        <p className="text-xs text-gray-500">Credited to Bank •••• 4582</p>
+                                    <div className="text-right">
+                                        <p className="font-bold text-dark">₹{delivery.earnings.toFixed(2)}</p>
+                                        <p className="text-xs text-green-600">{delivery.time}</p>
                                     </div>
                                 </div>
-                                <div className="text-right">
-                                    <p className="font-bold text-dark">₹5,240.00</p>
-                                    <p className="text-xs text-green-600">Nov {10 - i}, 2024</p>
-                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-gray-100 text-gray-400">
+                                <p>No deliveries completed today yet.</p>
+                                <p className="text-xs mt-1">Accept an order from the Dashboard to start earning!</p>
                             </div>
-                        ))}
+                        )}
                     </div>
                 </div>
             </div>

@@ -3,16 +3,22 @@ import MainLayout from '../layouts/MainLayout';
 import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Menu, MessageSquare, Send, X } from 'lucide-react';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
+import { getDeliveryStats, saveDeliveryStats, formatRideTime } from '../utils/deliveryState';
+
+const MOCK_ORDERS = [
+    { restaurant: { name: "Burger King", address: "Alpha One Mall, Ahmedabad" }, customer: { name: "Priya Patel", address: "B-202, Shivalik" }, items: [{ name: "Whopper Meal", qty: 1 }], earnings: 35, estTravelTimeMinutes: 12, dropDist: "5.1 km", restDist: "2.5 km" },
+    { restaurant: { name: "La Pino'z Pizza", address: "CG Road, Ahmedabad" }, customer: { name: "Rahul Sharma", address: "A-501, Orchid White" }, items: [{ name: "7 Cheese Pizza", qty: 1 }], earnings: 55, estTravelTimeMinutes: 20, dropDist: "3.2 km", restDist: "1.1 km" },
+    { restaurant: { name: "Honest", address: "SG Highway, Ahmedabad" }, customer: { name: "Sneha Desai", address: "302, Green Fields" }, items: [{ name: "Pav Bhaji", qty: 2 }], earnings: 45, estTravelTimeMinutes: 15, dropDist: "4.8 km", restDist: "3.5 km" },
+    { restaurant: { name: "McDonald's", address: "Drive In Road, Ahmedabad" }, customer: { name: "Amit Kumar", address: "101, Sunrise Park" }, items: [{ name: "McAloo Tikki", qty: 3 }], earnings: 40, estTravelTimeMinutes: 18, dropDist: "6.0 km", restDist: "1.8 km" }
+];
 
 const DeliveryDashboard = () => {
     const [isOnline, setIsOnline] = useState(true);
-    const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, earnings, profile
-    const [showNewOrderModal, setShowNewOrderModal] = useState(false);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    const [pendingOrder, setPendingOrder] = useState(null);
     
-    // Dynamic Stats
-    const [todaysEarnings, setTodaysEarnings] = useState(850);
-    const [ordersCount, setOrdersCount] = useState(12);
-    const [rideTime, setRideTime] = useState("4h 30m");
+    // Dynamic Stats from localStorage
+    const [stats, setStats] = useState(getDeliveryStats());
 
     // Chat Modal UI State
     const [showChatModal, setShowChatModal] = useState(false);
@@ -45,33 +51,43 @@ const DeliveryDashboard = () => {
 
     // Mock New Order Request
     useEffect(() => {
-        if (isOnline && !activeOrder) {
+        if (isOnline && !activeOrder && !pendingOrder) {
             const timer = setTimeout(() => {
-                setShowNewOrderModal(true);
+                const randomOrder = MOCK_ORDERS[Math.floor(Math.random() * MOCK_ORDERS.length)];
+                setPendingOrder(randomOrder);
             }, 3000);
             return () => clearTimeout(timer);
         }
-    }, [isOnline, activeOrder]);
+    }, [isOnline, activeOrder, pendingOrder]);
 
     const handleStatusUpdate = (newStatus) => {
         setActiveOrder({ ...activeOrder, status: newStatus });
         if (newStatus === 'delivered') {
             // Update earnings logic
-            setTodaysEarnings(prev => prev + activeOrder.earnings);
-            setOrdersCount(prev => prev + 1);
+            const currentStats = getDeliveryStats();
+            currentStats.todaysEarnings += activeOrder.earnings;
+            currentStats.ordersCount += 1;
+            currentStats.rideTimeMinutes += activeOrder.estTravelTimeMinutes;
+            if (!currentStats.pastDeliveries) currentStats.pastDeliveries = [];
+            // Unshift so the newest appears at the top
+            currentStats.pastDeliveries.unshift({
+                id: activeOrder.id,
+                restaurant: activeOrder.restaurant.name,
+                earnings: activeOrder.earnings,
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            });
+            saveDeliveryStats(currentStats);
+            setStats(currentStats);
         }
     };
 
     const handleAcceptOrder = () => {
         setActiveOrder({
-            id: 'ORD-NEW-001',
-            restaurant: { name: "Burger King", address: "Alpha One Mall, Ahmedabad" },
-            customer: { name: "Priya Patel", address: "B-202, Shivalik Shilp" },
-            items: [{ name: "Whopper Meal", qty: 1 }],
-            status: 'accepted',
-            earnings: 35
+            id: `ORD-NEW-${Math.floor(Math.random() * 1000)}`,
+            ...pendingOrder,
+            status: 'accepted'
         });
-        setShowNewOrderModal(false);
+        setPendingOrder(null);
     };
 
     const getStatusProgress = (status) => {
@@ -79,16 +95,18 @@ const DeliveryDashboard = () => {
         return (steps.indexOf(status) + 1) * 20;
     };
 
+    // Determine Map Location
     const getMapQuery = () => {
         if (activeOrder) {
-            if (['accepted', 'arrived_at_restaurant'].includes(activeOrder.status) && activeOrder.restaurant) {
-                return `${activeOrder.restaurant.lat || ''},${activeOrder.restaurant.lng || ''} ${activeOrder.restaurant.address}`;
-            } else if (activeOrder.customer && activeOrder.customer.address) {
+            if (['accepted', 'arrived_at_restaurant'].includes(activeOrder.status)) {
+                return activeOrder.restaurant.address;
+            } else {
                 return activeOrder.customer.address;
             }
         }
-        return `Ahmedabad, Gujarat`; // Default 
+        return "Ahmedabad, Gujarat";
     };
+    const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(getMapQuery())}&t=&z=14&ie=UTF8&iwloc=&output=embed`;
 
     return (
         <MainLayout>
@@ -110,21 +128,39 @@ const DeliveryDashboard = () => {
                 </div>
 
                 <div className="max-w-4xl mx-auto px-4 py-6">
-                    {/* Map Placeholder */}
-                    <div className="bg-gray-200 rounded-2xl h-64 w-full mb-6 relative overflow-hidden group shadow-inner border border-gray-200">
-                        <iframe 
-                            width="100%" 
-                            height="100%" 
-                            frameBorder="0" 
-                            style={{ border: 0 }} 
-                            src={`https://maps.google.com/maps?q=${encodeURIComponent(getMapQuery())}&z=14&output=embed`} 
-                            allowFullScreen
-                            title="Dynamic Navigation Map"
+                    {/* Map Area */}
+                    <div className="bg-gray-200 rounded-2xl h-64 w-full mb-6 relative overflow-hidden group shadow-inner">
+                        {/* Live Map iFrame */}
+                        <iframe
+                            title="Delivery Map"
+                            width="100%"
+                            height="100%"
+                            frameBorder="0"
+                            scrolling="no"
+                            marginHeight="0"
+                            marginWidth="0"
+                            src={mapUrl}
+                            className={`absolute inset-0 w-full h-full transition-opacity duration-500 ${activeOrder ? 'opacity-100' : 'opacity-80 pointer-events-none'}`}
+                            style={{ filter: activeOrder ? "none" : "contrast(1.1) saturate(1.2)" }}
                         ></iframe>
-                        {isOnline && !activeOrder && (
-                            <div className="absolute top-4 right-4 bg-white p-2 rounded-lg shadow-md">
-                                <p className="text-xs font-bold text-gray-500">ZONE</p>
-                                <p className="text-sm font-bold text-primary">CG Road (High Demand)</p>
+                        
+                        {!activeOrder && (
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-100 group-hover:opacity-0 transition-opacity duration-500">
+                                <div className="bg-white/90 backdrop-blur-md p-4 rounded-xl shadow-xl border border-gray-200 text-center transform group-hover:scale-95 transition-transform duration-300">
+                                    <Navigation className="w-8 h-8 text-primary mx-auto mb-2 animate-bounce" />
+                                    <p className="font-bold text-gray-800">Searching for Orders...</p>
+                                    <p className="text-xs text-gray-500">Ahmedabad, Gujarat</p>
+                                </div>
+                            </div>
+                        )}
+                        
+                        {isOnline && (
+                            <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-md border border-green-100">
+                                <p className="text-[10px] font-bold text-gray-500 tracking-wider">ACTIVE ZONE</p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse outline outline-2 outline-green-200"></span>
+                                    <p className="text-sm font-bold text-green-700">CG Road (High Demand)</p>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -133,15 +169,15 @@ const DeliveryDashboard = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                         <Link to="/delivery/earnings" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-green-200 transition-colors cursor-pointer">
                             <p className="text-gray-500 text-xs">Today's Earnings</p>
-                            <h3 className="text-xl font-bold text-dark">₹{todaysEarnings}</h3>
+                            <h3 className="text-xl font-bold text-dark">₹{stats.todaysEarnings.toFixed(2)}</h3>
                         </Link>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                             <p className="text-gray-500 text-xs">Orders</p>
-                            <h3 className="text-xl font-bold text-dark">{ordersCount}</h3>
+                            <h3 className="text-xl font-bold text-dark">{stats.ordersCount}</h3>
                         </div>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                             <p className="text-gray-500 text-xs">Ride Time</p>
-                            <h3 className="text-xl font-bold text-dark">{rideTime}</h3>
+                            <h3 className="text-xl font-bold text-dark">{formatRideTime(stats.rideTimeMinutes)}</h3>
                         </div>
                         <Link to="/delivery/profile" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
                             <p className="text-gray-500 text-xs">Profile & Ratings</p>
@@ -282,7 +318,7 @@ const DeliveryDashboard = () => {
                 </div>
 
                 {/* New Order Modal */}
-                {showNewOrderModal && (
+                {pendingOrder && (
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-4">
                         <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden animate-slideUp md:animate-fadeIn">
                             <div className="bg-primary p-4 text-white text-center">
@@ -291,7 +327,7 @@ const DeliveryDashboard = () => {
                             </div>
                             <div className="p-6">
                                 <div className="text-center mb-6">
-                                    <h2 className="text-3xl font-bold text-primary">₹35.00</h2>
+                                    <h2 className="text-3xl font-bold text-primary">₹{pendingOrder.earnings.toFixed(2)}</h2>
                                     <p className="text-gray-500 text-sm">Est. Earning (Incl. Tips)</p>
                                 </div>
                                 <div className="space-y-4 mb-8">
@@ -301,8 +337,8 @@ const DeliveryDashboard = () => {
                                                 <MapPin className="text-orange-600" size={20} />
                                             </div>
                                             <div className="text-left">
-                                                <p className="font-bold text-sm">Burger King</p>
-                                                <p className="text-xs text-gray-500">2.5 km away</p>
+                                                <p className="font-bold text-sm">{pendingOrder.restaurant.name}</p>
+                                                <p className="text-xs text-gray-500">{pendingOrder.restDist} away</p>
                                             </div>
                                         </div>
                                     </div>
@@ -314,13 +350,13 @@ const DeliveryDashboard = () => {
                                             </div>
                                             <div className="text-left">
                                                 <p className="font-bold text-sm">Drop Location</p>
-                                                <p className="text-xs text-gray-500">5.1 km trip</p>
+                                                <p className="text-xs text-gray-500">{pendingOrder.dropDist} trip</p>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <Button variant="outline" onClick={() => setShowNewOrderModal(false)} className="justify-center border-red-200 text-red-600 hover:bg-red-50">
+                                    <Button variant="outline" onClick={() => setPendingOrder(null)} className="justify-center border-red-200 text-red-600 hover:bg-red-50">
                                         Reject
                                     </Button>
                                     <Button variant="primary" onClick={handleAcceptOrder} className="justify-center">

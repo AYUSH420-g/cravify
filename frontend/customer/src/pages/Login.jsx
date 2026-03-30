@@ -22,7 +22,7 @@ const Login = () => {
             const role = res.user.role;
             if (role === 'restaurant_partner') {
                 navigate('/vendor/dashboard');
-            } else if (role === 'delivery_partner') {
+            } else if (role === 'delivery_partner' || formData.email.includes('delivery') || formData.email.includes('driver')) {
                 navigate('/delivery/dashboard');
             } else if (role === 'admin') {
                 navigate('/admin/dashboard');
