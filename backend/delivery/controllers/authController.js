@@ -57,7 +57,12 @@ exports.login = async (req, res) => {
         const { email, password } = req.body;
 
         // Check user
-        let user = await User.findOne({ email });
+        let user = await User.findOne({
+            $or: [
+                { email: email },
+                { name: email }
+            ]
+        });
         if (!user) {
             return res.status(400).json({ message: 'Invalid Credentials' });
         }

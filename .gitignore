@@ -134,3 +134,15 @@ dist
 *.zip
 
 make_zip.sh
+backend/.env
+backend/restaurant/.env
+backend/customer/.env
+backend/admin/.env
+backend/delivery/.env
+
+frontend/admin/.env
+frontend/customer/.env
+frontend/delivery/.env
+frontend/restaurant/.env
+
+.gitignore

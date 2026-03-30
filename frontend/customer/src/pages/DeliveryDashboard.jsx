@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
-import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Menu } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Menu, MessageSquare, Send, X } from 'lucide-react';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
 
@@ -8,6 +8,18 @@ const DeliveryDashboard = () => {
     const [isOnline, setIsOnline] = useState(true);
     const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, earnings, profile
     const [showNewOrderModal, setShowNewOrderModal] = useState(false);
+    
+    // Dynamic Stats
+    const [todaysEarnings, setTodaysEarnings] = useState(850);
+    const [ordersCount, setOrdersCount] = useState(12);
+    const [rideTime, setRideTime] = useState("4h 30m");
+
+    // Chat Modal UI State
+    const [showChatModal, setShowChatModal] = useState(false);
+    const [chatMessage, setChatMessage] = useState('');
+    const [chatHistory, setChatHistory] = useState([
+        { sender: 'customer', text: 'Hi, are you on the way?', time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }
+    ]);
 
     // Mock Active Order State
     const [activeOrder, setActiveOrder] = useState({
@@ -43,6 +55,11 @@ const DeliveryDashboard = () => {
 
     const handleStatusUpdate = (newStatus) => {
         setActiveOrder({ ...activeOrder, status: newStatus });
+        if (newStatus === 'delivered') {
+            // Update earnings logic
+            setTodaysEarnings(prev => prev + activeOrder.earnings);
+            setOrdersCount(prev => prev + 1);
+        }
     };
 
     const handleAcceptOrder = () => {
@@ -104,15 +121,15 @@ const DeliveryDashboard = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                         <Link to="/delivery/earnings" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-green-200 transition-colors cursor-pointer">
                             <p className="text-gray-500 text-xs">Today's Earnings</p>
-                            <h3 className="text-xl font-bold text-dark">₹850</h3>
+                            <h3 className="text-xl font-bold text-dark">₹{todaysEarnings}</h3>
                         </Link>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                             <p className="text-gray-500 text-xs">Orders</p>
-                            <h3 className="text-xl font-bold text-dark">12</h3>
+                            <h3 className="text-xl font-bold text-dark">{ordersCount}</h3>
                         </div>
                         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                             <p className="text-gray-500 text-xs">Ride Time</p>
-                            <h3 className="text-xl font-bold text-dark">4h 30m</h3>
+                            <h3 className="text-xl font-bold text-dark">{rideTime}</h3>
                         </div>
                         <Link to="/delivery/profile" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
                             <p className="text-gray-500 text-xs">Profile & Ratings</p>
@@ -195,6 +212,9 @@ const DeliveryDashboard = () => {
                                                     </Button>
                                                     <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50">
                                                         <Phone size={14} className="mr-1" /> Call Customer
+                                                    </Button>
+                                                    <Button size="sm" variant="outline" className="text-purple-600 border-purple-200 hover:bg-purple-50" onClick={() => setShowChatModal(true)}>
+                                                        <MessageSquare size={14} className="mr-1" /> Message
                                                     </Button>
                                                     {activeOrder.status === 'picked_up' && (
                                                         <Button size="sm" variant="primary" onClick={() => handleStatusUpdate('arrived_at_customer')}>
@@ -295,6 +315,65 @@ const DeliveryDashboard = () => {
                                         Accept Order
                                     </Button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+                {/* Chat Modal */}
+                {showChatModal && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                        <div className="bg-white rounded-2xl w-full max-w-sm flex flex-col h-[500px] overflow-hidden shadow-2xl relative animate-fadeIn">
+                            <div className="bg-primary p-4 text-white flex justify-between items-center shadow-md">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center font-bold">
+                                        {activeOrder?.customer?.name?.charAt(0) || 'C'}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold">{activeOrder?.customer?.name || 'Customer'}</h3>
+                                        <p className="text-xs text-white/80">Online</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setShowChatModal(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors relative z-10">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 flex flex-col gap-3">
+                                <div className="text-center text-xs text-gray-400 mb-2">Today</div>
+                                {chatHistory.map((msg, i) => (
+                                    <div key={i} className={`max-w-[80%] rounded-xl p-3 text-sm ${msg.sender === 'rider' ? 'bg-primary text-white self-end rounded-br-none' : 'bg-white border border-gray-200 text-gray-800 self-start rounded-bl-none shadow-sm'}`}>
+                                        <p>{msg.text}</p>
+                                        <span className={`text-[10px] block mt-1 ${msg.sender === 'rider' ? 'text-white/70 text-right' : 'text-gray-400'}`}>{msg.time}</span>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div className="p-3 bg-white border-t border-gray-100 flex items-center gap-2">
+                                <input 
+                                    type="text" 
+                                    placeholder="Type a message..." 
+                                    className="flex-1 bg-gray-100 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                    value={chatMessage}
+                                    onChange={(e) => setChatMessage(e.target.value)}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter' && chatMessage.trim()) {
+                                            setChatHistory([...chatHistory, { sender: 'rider', text: chatMessage, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+                                            setChatMessage('');
+                                        }
+                                    }}
+                                />
+                                <button 
+                                    className="w-10 h-10 bg-primary hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!chatMessage.trim()}
+                                    onClick={() => {
+                                        if (chatMessage.trim()) {
+                                            setChatHistory([...chatHistory, { sender: 'rider', text: chatMessage, time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }]);
+                                            setChatMessage('');
+                                        }
+                                    }}
+                                >
+                                    <Send size={16} />
+                                </button>
                             </div>
                         </div>
                     </div>

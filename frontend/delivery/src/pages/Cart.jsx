@@ -3,8 +3,10 @@ import MainLayout from '../layouts/MainLayout';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, MapPin } from 'lucide-react';
+import { useCart } from '../context/CartContext';
 
 const Cart = () => {
+    const { cartItems, updateQuantity, cartTotal } = useCart();
     return (
         <MainLayout>
             <div className="min-h-screen bg-section py-8">
@@ -29,46 +31,27 @@ const Cart = () => {
 
                             {/* Cart Items */}
                             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                                {/* Item 1 */}
-                                <div className="flex items-center justify-between pb-6 border-b border-gray-100 mb-6 last:mb-0 last:pb-0 last:border-0">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-4 h-4 border border-green-600 flex items-center justify-center rounded-sm shrink-0">
-                                            <div className="w-2 h-2 rounded-full bg-green-600" />
+                                {cartItems.length > 0 ? cartItems.map((item, index) => (
+                                    <div key={item.id || index} className="flex items-center justify-between pb-6 border-b border-gray-100 mb-6 last:mb-0 last:pb-0 last:border-0">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-4 h-4 border border-green-600 flex items-center justify-center rounded-sm shrink-0">
+                                                <div className="w-2 h-2 rounded-full bg-green-600" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-dark">{item.name}</h3>
+                                                <p className="text-sm text-gray-500">₹{item.price?.toFixed(2) || item.price}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="font-bold text-dark">7 cheese</h3>
-                                            <p className="text-sm text-gray-500">₹250.00</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex items-center border border-gray-200 rounded-lg px-2 py-1 bg-gray-50">
-                                            <button className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-dark font-bold">-</button>
-                                            <span className="mx-2 font-medium w-4 text-center">1</span>
-                                            <button className="w-6 h-6 flex items-center justify-center text-green-600 font-bold">+</button>
-                                        </div>
-                                        <div className="font-bold w-16 text-right">₹250.00</div>
-                                    </div>
-                                </div>
-                                {/* Item 2 */}
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-4 h-4 border border-green-600 flex items-center justify-center rounded-sm shrink-0">
-                                            <div className="w-2 h-2 rounded-full bg-green-600" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-dark">Choco Lava Cake</h3>
-                                            <p className="text-sm text-gray-500">₹40.00</p>
+                                        <div className="flex items-center gap-6">
+                                            <div className="flex items-center border border-gray-200 rounded-lg px-2 py-1 bg-gray-50">
+                                                <button onClick={() => updateQuantity(item.id, 'minus')} className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-dark font-bold">-</button>
+                                                <span className="mx-2 font-medium w-4 text-center">{item.quantity}</span>
+                                                <button onClick={() => updateQuantity(item.id, 'plus')} className="w-6 h-6 flex items-center justify-center text-green-600 font-bold">+</button>
+                                            </div>
+                                            <div className="font-bold w-16 text-right">₹{((item.price || 0) * item.quantity).toFixed(2)}</div>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex items-center border border-gray-200 rounded-lg px-2 py-1 bg-gray-50">
-                                            <button className="w-6 h-6 flex items-center justify-center text-gray-500 hover:text-dark font-bold">-</button>
-                                            <span className="mx-2 font-medium w-4 text-center">2</span>
-                                            <button className="w-6 h-6 flex items-center justify-center text-green-600 font-bold">+</button>
-                                        </div>
-                                        <div className="font-bold w-16 text-right">₹80.00</div>
-                                    </div>
-                                </div>
+                                )) : <div className="text-center text-gray-500 py-4">Your cart is empty.</div>}
                             </div>
 
                             {/* Delivery Instructions */}
@@ -90,7 +73,7 @@ const Cart = () => {
                                 <div className="space-y-3 pb-6 border-b border-gray-100">
                                     <div className="flex justify-between text-gray-500 text-sm">
                                         <span>Item Total</span>
-                                        <span>₹330.00</span>
+                                        <span>₹{cartTotal.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-sm">
                                         <span>Delivery Fee</span>
@@ -102,13 +85,13 @@ const Cart = () => {
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-sm">
                                         <span>GST and Restaurant Charges</span>
-                                        <span>₹18.00</span>
+                                        <span>₹{(cartTotal * 0.05).toFixed(2)}</span>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-between font-bold text-xl py-6">
                                     <span>To Pay</span>
-                                    <span>₹393.00</span>
+                                    <span>₹{(cartTotal + 40 + 5 + cartTotal * 0.05).toFixed(2)}</span>
                                 </div>
 
                                 <Link to="/checkout" className="block w-full">

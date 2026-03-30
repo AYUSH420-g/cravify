@@ -18,7 +18,7 @@ const DeliveryProfile = () => {
 
     const fetchProfile = async () => {
         try {
-            const res = await fetch('http://localhost:5000/api/delivery/profile', {
+            const res = await fetch('http://localhost:5003/api/delivery/profile', {
                 headers: { 'x-auth-token': token }
             });
             if (res.ok) {

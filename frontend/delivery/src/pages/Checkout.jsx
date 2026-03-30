@@ -4,8 +4,10 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { Home, Briefcase, MapPin, CreditCard, Wallet, Banknote } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useCart } from '../context/CartContext';
 
 const Checkout = () => {
+    const { cartItems, cartTotal } = useCart();
     const [selectedAddress, setSelectedAddress] = useState(1);
     const [selectedPayment, setSelectedPayment] = useState('card');
 
@@ -124,34 +126,36 @@ const Checkout = () => {
                                 <p className="text-sm text-gray-500 mb-6 pb-6 border-b border-gray-100">Ordered items</p>
 
                                 <div className="space-y-4 mb-6">
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">7 cheese x 1</span>
-                                        <span className="font-medium">₹250.00</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                        <span className="text-gray-600">Choco Lava Cake 2</span>
-                                        <span className="font-medium">₹80.00</span>
-                                    </div>
+                                    {cartItems.length > 0 ? cartItems.map((item, i) => (
+                                        <div key={item.id || i} className="flex justify-between text-sm">
+                                            <span className="text-gray-600">{item.name} x {item.quantity}</span>
+                                            <span className="font-medium">₹{((item.price || 0) * item.quantity).toFixed(2)}</span>
+                                        </div>
+                                    )) : <div className="text-sm text-gray-500">Cart is empty</div>}
                                 </div>
 
                                 <div className="space-y-3 pb-6 border-b border-gray-100">
                                     <div className="flex justify-between text-gray-500 text-sm">
                                         <span>Item Total</span>
-                                        <span>₹330.00</span>
+                                        <span>₹{cartTotal.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-sm">
                                         <span>Delivery Fee</span>
                                         <span>₹40.00</span>
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-sm">
+                                        <span>Platform Fee</span>
+                                        <span>₹5.00</span>
+                                    </div>
+                                    <div className="flex justify-between text-gray-500 text-sm">
                                         <span>Service Tax</span>
-                                        <span>₹23.00</span>
+                                        <span>₹{(cartTotal * 0.05).toFixed(2)}</span>
                                     </div>
                                 </div>
 
                                 <div className="flex justify-between font-bold text-xl py-6">
                                     <span>To Pay</span>
-                                    <span>₹393.00</span>
+                                    <span>₹{(cartTotal + 40 + 5 + cartTotal * 0.05).toFixed(2)}</span>
                                 </div>
 
                                 <Link to="/order-tracking" className="block w-full">

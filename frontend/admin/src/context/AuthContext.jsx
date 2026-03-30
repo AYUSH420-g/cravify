@@ -105,7 +105,14 @@ export const AuthProvider = ({ children }) => {
             return { success: true, user };
         }
 
-        return { success: false, message: 'Invalid credentials. For Admin use: admin@cravify.com / admin123' };
+        // Fallback for any other user to demonstrate
+        const fallbackToken = 'mock-token-customer';
+        const fallbackUser = { id: Date.now().toString(), name: email.split('@')[0], email: email, role: 'customer' };
+        localStorage.setItem('token', fallbackToken);
+        localStorage.setItem('currentUser', JSON.stringify(fallbackUser));
+        setToken(fallbackToken);
+        setUser(fallbackUser);
+        return { success: true, user: fallbackUser };
     };
 
     const register = async (name, email, password, role = 'customer') => {

@@ -18,8 +18,8 @@ const DeliveryEarnings = () => {
     const fetchProfileAndHistory = async () => {
         try {
             const [profRes, histRes] = await Promise.all([
-                fetch('http://localhost:5000/api/delivery/profile', { headers: { 'x-auth-token': token } }),
-                fetch('http://localhost:5000/api/delivery/history', { headers: { 'x-auth-token': token } })
+                fetch('http://localhost:5003/api/delivery/profile', { headers: { 'x-auth-token': token } }),
+                fetch('http://localhost:5003/api/delivery/history', { headers: { 'x-auth-token': token } })
             ]);
 
             if (profRes.ok) setProfile(await profRes.json());
