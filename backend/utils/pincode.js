@@ -1,0 +1,136 @@
+/**
+ * Indian Pincode validation and distance estimation utility.
+ * Uses the free Postal PIN Code API (api.postalpincode.in) to validate pincodes
+ * and estimate distances between two pincodes using district/state centroid approximation.
+ */
+
+// In-memory cache for pincode lookups (reduces external API calls)
+const pincodeCache = new Map();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Validate an Indian pincode and return its details.
+ * @param {string} pincode - 6-digit Indian pincode
+ * @returns {Object|null} { pincode, district, state, lat, lng } or null if invalid
+ */
+async function validatePincode(pincode) {
+    if (!pincode || !/^\d{6}$/.test(pincode.toString().trim())) {
+        return null;
+    }
+
+    const pin = pincode.toString().trim();
+
+    // Check cache first
+    if (pincodeCache.has(pin)) {
+        const cached = pincodeCache.get(pin);
+        if (Date.now() - cached.timestamp < CACHE_TTL) {
+            return cached.data;
+        }
+        pincodeCache.delete(pin);
+    }
+
+    try {
+        const response = await fetch(`https://api.postalpincode.in/pincode/${pin}`, {
+            headers: { 'User-Agent': 'Cravify-App/1.0' },
+            signal: AbortSignal.timeout(5000)
+        });
+        const data = await response.json();
+
+        if (!data || !data[0] || data[0].Status !== 'Success' || !data[0].PostOffice?.length) {
+            return null;
+        }
+
+        const po = data[0].PostOffice[0];
+        const result = {
+            pincode: pin,
+            district: po.District || '',
+            state: po.State || '',
+            region: po.Region || '',
+            country: po.Country || 'India',
+            // Some post offices don't have coordinates; we'll geocode separately if needed
+        };
+
+        // Try to get lat/lng via Nominatim geocoding using the pincode
+        try {
+            const geoRes = await fetch(
+                `https://nominatim.openstreetmap.org/search?postalcode=${pin}&country=India&format=json&limit=1`,
+                { headers: { 'User-Agent': 'Cravify-App/1.0' }, signal: AbortSignal.timeout(5000) }
+            );
+            const geoData = await geoRes.json();
+            if (geoData && geoData.length > 0) {
+                result.lat = parseFloat(geoData[0].lat);
+                result.lng = parseFloat(geoData[0].lon);
+            }
+        } catch (geoErr) {
+            console.error('Pincode geocoding failed:', geoErr.message);
+        }
+
+        // Cache the result
+        pincodeCache.set(pin, { data: result, timestamp: Date.now() });
+        return result;
+    } catch (err) {
+        console.error('Pincode validation API error:', err.message);
+        return null;
+    }
+}
+
+/**
+ * Calculate approximate distance between two coordinates using Haversine formula.
+ * @returns {number} Distance in kilometers
+ */
+function haversineDistance(lat1, lng1, lat2, lng2) {
+    const R = 6371; // Earth's radius in km
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function toRad(deg) {
+    return deg * (Math.PI / 180);
+}
+
+/**
+ * Calculate delivery fee based on distance and order value.
+ * Base fee: ₹20, per-km rate: ₹5/km after first 3km, minimum ₹25, maximum ₹120
+ * Free delivery for orders above ₹500.
+ */
+function calculateDeliveryFee(distanceKm, orderValue) {
+    // Free delivery for orders above ₹500
+    if (orderValue >= 500) return 0;
+
+    const baseFee = 20;
+    const freeKm = 3;
+    const perKmRate = 5;
+
+    let fee = baseFee;
+    if (distanceKm > freeKm) {
+        fee += Math.ceil(distanceKm - freeKm) * perKmRate;
+    }
+
+    // Clamp between ₹25 and ₹120
+    return Math.max(25, Math.min(120, Math.round(fee)));
+}
+
+/**
+ * Calculate delivery partner earnings based on distance and order value.
+ * Base: ₹25, per-km bonus: ₹3/km, order value bonus: 2% of order, min ₹30, max ₹150
+ */
+function calculateDeliveryEarning(distanceKm, orderValue) {
+    const base = 25;
+    const perKmBonus = 3;
+    const orderBonus = Math.round(orderValue * 0.02); // 2% of order value
+
+    let earning = base + Math.round(distanceKm * perKmBonus) + orderBonus;
+
+    // Clamp between ₹30 and ₹150
+    return Math.max(30, Math.min(150, earning));
+}
+
+module.exports = {
+    validatePincode,
+    haversineDistance,
+    calculateDeliveryFee,
+    calculateDeliveryEarning
+};
