@@ -10,7 +10,7 @@ const VendorMenu = () => {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editItemId, setEditItemId] = useState(null);
-    
+
     // Form state
     const [newItem, setNewItem] = useState({ name: '', price: '', category: '', isVeg: true, description: '' });
     const [imageFile, setImageFile] = useState(null);
@@ -70,30 +70,44 @@ const VendorMenu = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSubmitting(true);
+
         const formData = new FormData();
         formData.append('name', newItem.name);
-        formData.append('price', newItem.price);
+        formData.append('price', String(newItem.price));
         formData.append('category', newItem.category);
-        formData.append('isVeg', newItem.isVeg);
+        formData.append('isVeg', JSON.stringify(newItem.isVeg));
         formData.append('description', newItem.description);
-        if (imageFile) formData.append('image', imageFile);
 
-        const url = editItemId ? `/api/vendor/menu/${editItemId}` : '/api/vendor/menu';
+        if (imageFile) {
+            formData.append('image', imageFile);
+        }
+
+        const url = editItemId
+            ? `/api/vendor/menu/${editItemId}`
+            : '/api/vendor/menu';
+
         const method = editItemId ? 'PUT' : 'POST';
 
         try {
             const res = await fetch(url, {
-                method: method,
-                headers: { 'x-auth-token': token },
+                method,
+                headers: {
+                    'x-auth-token': token
+                },
                 body: formData
             });
+
             const data = await res.json();
-            if (res.ok) {
-                setItems(data.menu);
-                handleCloseModal();
+
+            if (!res.ok) {
+                throw new Error(data.message || 'Request failed');
             }
-        } catch (e) {
-            console.error(e);
+
+            setItems(data.menu);
+            handleCloseModal();
+
+        } catch (err) {
+            console.error('Submit error:', err);
         } finally {
             setIsSubmitting(false);
         }
@@ -179,32 +193,32 @@ const VendorMenu = () => {
                                     <X size={20} />
                                 </button>
                             </div>
-                            
+
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
-                                        <input type="text" required className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary" 
-                                            value={newItem.name} onChange={e => setNewItem({...newItem, name: e.target.value})} placeholder="e.g. Garlic Bread" />
+                                        <input type="text" required className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary"
+                                            value={newItem.name} onChange={e => setNewItem({ ...newItem, name: e.target.value })} placeholder="e.g. Garlic Bread" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹)</label>
-                                        <input type="number" required min="1" className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary" 
-                                            value={newItem.price} onChange={e => setNewItem({...newItem, price: e.target.value})} placeholder="150" />
+                                        <input type="number" required min="1" className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary"
+                                            value={newItem.price} onChange={e => setNewItem({ ...newItem, price: e.target.value })} placeholder="150" />
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                                        <input type="text" required className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary" 
-                                            value={newItem.category} onChange={e => setNewItem({...newItem, category: e.target.value})} placeholder="Starters" />
+                                        <input type="text" required className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary"
+                                            value={newItem.category} onChange={e => setNewItem({ ...newItem, category: e.target.value })} placeholder="Starters" />
                                     </div>
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
                                         <textarea className="w-full border rounded-xl px-4 py-2 focus:ring-primary focus:border-primary" rows="2"
-                                            value={newItem.description} onChange={e => setNewItem({...newItem, description: e.target.value})} placeholder="Delicious garlic bread with cheese..." />
+                                            value={newItem.description} onChange={e => setNewItem({ ...newItem, description: e.target.value })} placeholder="Delicious garlic bread with cheese..." />
                                     </div>
                                     <div className="col-span-2 flex items-center justify-between">
                                         <label className="text-sm font-medium text-gray-700">Dietary Preference</label>
-                                        <select className="border rounded-xl px-4 py-2" value={newItem.isVeg} onChange={e => setNewItem({...newItem, isVeg: e.target.value === 'true'})}>
+                                        <select className="border rounded-xl px-4 py-2" value={newItem.isVeg} onChange={e => setNewItem({ ...newItem, isVeg: e.target.value === 'true' })}>
                                             <option value="true">Veg 🟢</option>
                                             <option value="false">Non-Veg 🔴</option>
                                         </select>
@@ -212,7 +226,7 @@ const VendorMenu = () => {
                                     <div className="col-span-2">
                                         <label className="block text-sm font-medium text-gray-700 mb-1">{editItemId ? 'Update Item Image (Optional)' : 'Item Image (Optional)'}</label>
                                         <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:bg-gray-50 flex items-center justify-center gap-2"
-                                             onClick={() => document.getElementById('image-upload').click()}>
+                                            onClick={() => document.getElementById('image-upload').click()}>
                                             <Upload className="text-gray-400 w-5 h-5" />
                                             <span className="text-sm text-gray-600 font-medium">{imageFile ? imageFile.name : 'Click to select image file'}</span>
                                         </div>

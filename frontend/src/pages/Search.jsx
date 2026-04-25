@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import RestaurantCard from '../components/RestaurantCard';
-import { Search, X, Loader2 } from 'lucide-react';
+import { Search, X, Loader2, Mic, Volume2 } from 'lucide-react';
+import Button from '../components/Button';
+
 
 const Search_ = () => {
     const [searchParams, setSearchParams] = useSearchParams();
@@ -10,15 +12,94 @@ const Search_ = () => {
     const [query, setQuery] = useState(initialQuery);
     const [restaurants, setRestaurants] = useState([]);
     const [loading, setLoading] = useState(true);
+    
+    const [isListening, setIsListening] = useState(false);
+    const [voiceTranscript, setVoiceTranscript] = useState('');
+    const [voiceStatus, setVoiceStatus] = useState('Initializing...');
 
-    // Fetch all online restaurants once
+    const handleVoiceSearch = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('Your browser does not support voice search. Please use Chrome or Edge.');
+            return;
+        }
+
+        setIsListening(true);
+        setVoiceStatus('Requesting Microphone...');
+        setVoiceTranscript('');
+
+        try {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-IN';
+            recognition.interimResults = true;
+            recognition.continuous = true;
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                setVoiceStatus('Listening...');
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const currentTranscript = finalTranscript || interimTranscript;
+                if (currentTranscript) {
+                    const cleanedTranscript = currentTranscript.replace(/[.,!?]$/, '').trim();
+                    setVoiceTranscript(cleanedTranscript);
+                    setVoiceStatus('I hear you...');
+                }
+            };
+
+            recognition.onend = () => {
+                if (isListening) {
+                    try { recognition.start(); } catch(e) {}
+                }
+            };
+
+            recognition.onerror = (event) => {
+                if (event.error === 'no-speech') {
+                    setVoiceStatus('Still listening...');
+                    return;
+                }
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied.');
+                    setIsListening(false);
+                }
+            };
+
+            recognition.start();
+        } catch (err) {
+            console.error('Failed to start speech recognition', err);
+            setIsListening(false);
+        }
+    };
+
+    // Fetch all online restaurants with menu data for dish-name search
     useEffect(() => {
         const fetchRestaurants = async () => {
             try {
                 const res = await fetch('/api/customer/restaurants');
                 const data = await res.json();
                 if (res.ok) {
-                    setRestaurants(data);
+                    // Fetch full data for each restaurant to get menu items
+                    const fullDataPromises = data.map(async (r) => {
+                        try {
+                            const fullRes = await fetch(`/api/customer/restaurants/${r._id}`);
+                            if (fullRes.ok) return await fullRes.json();
+                        } catch (e) { /* fallback to partial data */ }
+                        return r;
+                    });
+                    const fullData = await Promise.all(fullDataPromises);
+                    setRestaurants(fullData);
                 }
             } catch (e) {
                 console.error('Failed to fetch restaurants:', e);
@@ -31,14 +112,15 @@ const Search_ = () => {
 
     // Sync query → URL param
     useEffect(() => {
-        if (query.trim()) {
-            setSearchParams({ q: query.trim() }, { replace: true });
+        const sanitized = query.trim().replace(/\.+$/, '');
+        if (sanitized) {
+            setSearchParams({ q: sanitized }, { replace: true });
         } else {
             setSearchParams({}, { replace: true });
         }
     }, [query]);
 
-    // Filter using regex
+    // Filter using regex — matches restaurant name, cuisines, and menu item names/descriptions
     const filteredRestaurants = useMemo(() => {
         if (!query.trim()) return [];
         try {
@@ -46,13 +128,14 @@ const Search_ = () => {
             return restaurants.filter(r =>
                 regex.test(r.name) ||
                 (r.cuisines && r.cuisines.some(c => regex.test(c))) ||
-                (r.menu && r.menu.some(m => regex.test(m.name)))
+                (r.menu && r.menu.some(m => regex.test(m.name) || regex.test(m.description || '') || regex.test(m.category || '')))
             );
         } catch {
             const q = query.trim().toLowerCase();
             return restaurants.filter(r =>
                 r.name.toLowerCase().includes(q) ||
-                (r.cuisines && r.cuisines.some(c => c.toLowerCase().includes(q)))
+                (r.cuisines && r.cuisines.some(c => c.toLowerCase().includes(q))) ||
+                (r.menu && r.menu.some(m => m.name.toLowerCase().includes(q)))
             );
         }
     }, [query, restaurants]);
@@ -66,25 +149,85 @@ const Search_ = () => {
                 {/* Search Header */}
                 <h1 className="text-2xl font-bold mb-6">Search</h1>
 
+                {/* Listening Overlay */}
+                {isListening && (
+                    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xl flex items-center justify-center animate-in fade-in duration-300">
+                        <div className="bg-white rounded-3xl p-10 max-w-lg w-full shadow-2xl text-center space-y-8 scale-in-center">
+                            <div className="relative mx-auto w-32 h-32 flex items-center justify-center">
+                                <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
+                                <div className="absolute inset-2 bg-primary/10 rounded-full animate-pulse"></div>
+                                <div className="relative bg-primary text-white w-20 h-20 rounded-full flex items-center justify-center shadow-lg shadow-primary/40">
+                                    <Mic size={32} />
+                                </div>
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-dark mb-3">{voiceStatus}</h3>
+                                <p className="text-gray-400 text-sm uppercase tracking-widest font-bold mb-4">Speak your craving</p>
+                                <div className="bg-gray-50 rounded-2xl p-6 border-2 border-dashed border-gray-200">
+                                    <p className="text-primary text-2xl font-bold min-h-[60px] italic leading-relaxed">
+                                        {voiceTranscript ? `"${voiceTranscript}"` : '...'}
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="flex gap-4">
+                                <Button 
+                                    variant="outline" 
+                                    className="flex-1 rounded-2xl py-4 font-bold border-2"
+                                    onClick={() => setIsListening(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button 
+                                    variant="primary" 
+                                    className="flex-1 rounded-2xl py-4 font-bold shadow-lg shadow-primary/20"
+                                    onClick={() => {
+                                        if (voiceTranscript) {
+                                            setQuery(voiceTranscript);
+                                            setIsListening(false);
+                                        }
+                                    }}
+                                >
+                                    Apply Search
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Search Input */}
-                <div className="relative mb-8">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <div className="relative mb-8 group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-primary transition-colors" size={20} />
                     <input
                         type="text"
                         placeholder="Search for restaurants, cuisines or dishes..."
-                        className="w-full p-4 pl-12 pr-10 border rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white focus:border-primary/20 transition-all text-sm"
+                        className="w-full p-5 pl-12 pr-24 border rounded-2xl bg-gray-50 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:bg-white focus:border-primary/20 transition-all text-sm font-medium shadow-sm"
                         autoFocus
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
-                    {query && (
+                    <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                        {isListening && (
+                            <span className="flex h-3 w-3 relative">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                            </span>
+                        )}
                         <button
-                            onClick={() => setQuery('')}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                            onClick={handleVoiceSearch}
+                            className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'text-gray-400 hover:bg-gray-100 hover:text-primary'}`}
+                            title="Voice Search"
                         >
-                            <X size={18} />
+                            <Mic size={20} />
                         </button>
-                    )}
+                        {query && (
+                            <button
+                                onClick={() => setQuery('')}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        )}
+                    </div>
                 </div>
 
                 {loading ? (

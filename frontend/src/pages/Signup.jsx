@@ -23,10 +23,33 @@ const Signup = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+    const isPasswordStrong = (pw) => {
+        return /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/.test(pw);
+    };
+
+    const getPasswordStrength = (pw) => {
+        if (!pw) return { label: '', color: '' };
+        let score = 0;
+        if (pw.length >= 8) score++;
+        if (/[A-Z]/.test(pw)) score++;
+        if (/\d/.test(pw)) score++;
+        if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pw)) score++;
+        if (score <= 1) return { label: 'Weak', color: 'text-red-500' };
+        if (score <= 2) return { label: 'Fair', color: 'text-orange-500' };
+        if (score <= 3) return { label: 'Good', color: 'text-yellow-600' };
+        return { label: 'Strong', color: 'text-green-600' };
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setSuccessMsg('');
+
+        if (!isPasswordStrong(formData.password)) {
+            setError('Password must be at least 8 characters and include an uppercase letter, a number, and a special character.');
+            return;
+        }
+
         const res = await register(formData.name, formData.email, formData.password, formData.role);
         
         if (res.success) {
@@ -37,8 +60,6 @@ const Signup = () => {
                     navigate('/login');
                 }, 3000);
             } else {
-                // Customer gets auto logged in via the updated AuthContext, so the useEffect above handles routing
-                // or we explicitly send them to login as requested.
                 navigate('/login');
             }
         } else {
@@ -132,6 +153,14 @@ const Signup = () => {
                                     value={formData.password}
                                     onChange={handleChange}
                                 />
+                                {formData.password && (
+                                    <div className="mt-1.5 flex items-center justify-between">
+                                        <p className={`text-xs font-medium ${getPasswordStrength(formData.password).color}`}>
+                                            {getPasswordStrength(formData.password).label}
+                                        </p>
+                                        <p className="text-[10px] text-gray-400">8+ chars, uppercase, number, special char</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 

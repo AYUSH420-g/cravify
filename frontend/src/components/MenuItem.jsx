@@ -1,6 +1,7 @@
 import React from 'react';
 import Button from './Button';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 
 const MenuItem = ({ id, _id, name, price, description, image, isVeg, votes, restaurant }) => {
     const { addToCart, cartItems, updateQuantity } = useCart();
@@ -29,7 +30,11 @@ const MenuItem = ({ id, _id, name, price, description, image, isVeg, votes, rest
             <div className="relative w-36 h-32 shrink-0">
                 <img src={image} alt={name} className="w-full h-full object-cover rounded-xl" />
                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-24">
-                    {cartItem ? (
+                    {useAuth().user && useAuth().user.role !== 'customer' ? (
+                        <div className="bg-gray-100 text-gray-400 border border-gray-200 shadow-sm rounded-xl h-9 flex items-center justify-center font-bold text-[10px] uppercase px-1">
+                            {useAuth().user.role.replace('_partner', '')}
+                        </div>
+                    ) : cartItem ? (
                         <div className="flex items-center justify-between bg-white text-green-600 border border-gray-200 shadow-lg rounded-xl h-9 px-2 font-bold text-sm">
                             <button onClick={() => updateQuantity(itemId, 'minus')} className="px-2 text-gray-400 hover:text-green-600">-</button>
                             <span>{cartItem.quantity}</span>

@@ -6,10 +6,11 @@ const Settings = require('../models/Settings');
 // Get all pending partner registrations
 exports.getPendingApprovals = async (req, res) => {
     try {
+        const limit = parseInt(req.query.limit, 10) || 100;
         const users = await User.find({ 
             role: { $in: ['restaurant_partner', 'delivery_partner'] }, 
             isVerified: false 
-        }).select('-password');
+        }).select('-password').limit(limit).lean();
         res.json(users);
     } catch (err) {
         console.error(err.message);
@@ -57,10 +58,23 @@ exports.rejectUser = async (req, res) => {
 // Get all platform orders
 exports.getAllOrders = async (req, res) => {
     try {
-        const orders = await Order.find()
+        const limit = parseInt(req.query.limit, 10) || 500;
+        
+        let query = {};
+        if (req.query.restaurant) {
+            query.restaurant = req.query.restaurant;
+        }
+        if (req.query.deliveryPartner) {
+            query.deliveryPartner = req.query.deliveryPartner;
+        }
+
+        const orders = await Order.find(query)
             .populate('user', 'name email phone')
             .populate('restaurant', 'name address')
-            .sort({ createdAt: -1 });
+            .populate('deliveryPartner', 'name phone')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
         res.json(orders);
     } catch (err) {
         console.error(err.message);
@@ -76,6 +90,13 @@ exports.cancelOrder = async (req, res) => {
 
         order.status = 'Cancelled';
         await order.save();
+        
+        const io = req.app.get('io');
+        if (io) {
+            io.to(`user_${order.user}`).emit('order_status_updated', order);
+            io.to(`order_${order._id}`).emit('order_status_updated', order);
+        }
+
         res.json({ message: 'Order cancelled', order });
     } catch (err) {
         console.error(err.message);
@@ -88,8 +109,11 @@ exports.cancelOrder = async (req, res) => {
 // Get all restaurants (with vendor info)
 exports.getAllRestaurants = async (req, res) => {
     try {
+        const limit = parseInt(req.query.limit, 10) || 100;
         const restaurants = await Restaurant.find()
-            .populate('vendor', 'name email phone isVerified');
+            .populate('vendor', 'name email phone isVerified')
+            .limit(limit)
+            .lean();
         res.json(restaurants);
     } catch (err) {
         console.error(err.message);
@@ -102,7 +126,7 @@ exports.getAllRestaurants = async (req, res) => {
 exports.getSettings = async (req, res) => {
     try {
         const settings = await Settings.getInstance();
-        res.json(settings);
+        res.json(settings.toObject ? settings.toObject() : settings);
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ message: 'Server error fetching settings' });

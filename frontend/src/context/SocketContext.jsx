@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
@@ -9,16 +9,15 @@ export const useSocket = () => useContext(SocketContext);
 export const SocketProvider = ({ children }) => {
     const { user, token } = useAuth();
     const [socket, setSocket] = useState(null);
+    const socketRef = useRef(null);
 
     useEffect(() => {
         if (token && user && user.id) {
-            // In development, the backend runs on port 5000 (proxy handled by vite or direct)
-            // Since we are using relative paths for API, we can use the same for socket if proxy is set,
-            // otherwise we specify the backend URL.
             const newSocket = io('/', {
                 auth: { token }
             });
 
+            socketRef.current = newSocket;
             setSocket(newSocket);
 
             newSocket.on('connect', () => {
@@ -40,14 +39,19 @@ export const SocketProvider = ({ children }) => {
                 }
             });
 
-            return () => newSocket.close();
+            return () => {
+                newSocket.close();
+                socketRef.current = null;
+            };
         } else {
-            if (socket) {
-                socket.close();
+            // Clean up existing socket when user logs out
+            if (socketRef.current) {
+                socketRef.current.close();
+                socketRef.current = null;
                 setSocket(null);
             }
         }
-    }, [token, user]);
+    }, [token, user?.id, user?.role]);
 
     return (
         <SocketContext.Provider value={socket}>

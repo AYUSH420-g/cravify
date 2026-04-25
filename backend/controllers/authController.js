@@ -4,6 +4,8 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const imagekit = require('../utils/imagekit');
+const { validatePincode } = require('../utils/pincode');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'DUMMY_CLIENT_ID');
 
@@ -17,9 +19,21 @@ const generateToken = (user) => {
 };
 
 // Register User
-exports.register = async (req, res) => {
+exports.register = async (req, res, next) => {
     try {
         const { name, email, password, role } = req.body;
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ message: 'Name, email and password are required' });
+        }
+
+        // Password strength validation
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({ 
+                message: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character.' 
+            });
+        }
 
         let user = await User.findOne({ email });
         if (user) {
@@ -34,7 +48,7 @@ exports.register = async (req, res) => {
         }
 
         const resolvedRole = role || 'customer';
-        const isVerified = resolvedRole === 'customer'; 
+        const isVerified = resolvedRole === 'customer';
 
         user = new User({
             name,
@@ -47,9 +61,9 @@ exports.register = async (req, res) => {
         await user.save();
 
         if (!isVerified) {
-            return res.status(201).json({ 
-                message: 'Registration successful. Waiting for admin approval.', 
-                user: { id: user.id, name: user.name, email: user.email, role: user.role, isVerified: user.isVerified } 
+            return res.status(201).json({
+                message: 'Registration successful. Waiting for admin approval.',
+                user: { id: user.id, name: user.name, email: user.email, role: user.role, isVerified: user.isVerified }
             });
         }
 
@@ -57,13 +71,15 @@ exports.register = async (req, res) => {
         res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error("Register Error:", err.message);
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Register Vendor (Multipart)
-exports.registerVendor = async (req, res) => {
+exports.registerVendor = async (req, res, next) => {
     try {
         const { ownerName, email, password, phone, role, restaurantName, address, cuisine, fssai } = req.body;
 
@@ -72,18 +88,67 @@ exports.registerVendor = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
+        // Password strength validation
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({ 
+                message: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character.' 
+            });
+        }
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Files
+        // Files via ImageKit
+        let restaurantImageUrl = '';
         let fssaiCertUrl = '';
         let gstCertUrl = '';
         let menuCardUrl = '';
 
         if (req.files) {
-            if (req.files.fssaiCert && req.files.fssaiCert[0]) fssaiCertUrl = `/uploads/${req.files.fssaiCert[0].filename}`;
-            if (req.files.gstCert && req.files.gstCert[0]) gstCertUrl = `/uploads/${req.files.gstCert[0].filename}`;
-            if (req.files.menuCard && req.files.menuCard[0]) menuCardUrl = `/uploads/${req.files.menuCard[0].filename}`;
+            try {
+                if (req.files.restaurantImage && req.files.restaurantImage[0]) {
+                    const upload = await imagekit.upload({ file: req.files.restaurantImage[0].buffer, fileName: req.files.restaurantImage[0].originalname, folder: '/cravify/restaurants' });
+                    restaurantImageUrl = upload.url;
+                }
+                if (req.files.fssaiCert && req.files.fssaiCert[0]) {
+                    const upload = await imagekit.upload({ file: req.files.fssaiCert[0].buffer, fileName: req.files.fssaiCert[0].originalname, folder: '/cravify/vendors' });
+                    fssaiCertUrl = upload.url;
+                }
+                if (req.files.gstCert && req.files.gstCert[0]) {
+                    const upload = await imagekit.upload({ file: req.files.gstCert[0].buffer, fileName: req.files.gstCert[0].originalname, folder: '/cravify/vendors' });
+                    gstCertUrl = upload.url;
+                }
+                if (req.files.menuCard && req.files.menuCard[0]) {
+                    const upload = await imagekit.upload({ file: req.files.menuCard[0].buffer, fileName: req.files.menuCard[0].originalname, folder: '/cravify/vendors' });
+                    menuCardUrl = upload.url;
+                }
+            } catch (err) {
+                console.error('ImageKit Vendor Upload Error:', err);
+                return res.status(500).json({ success: false, message: 'File upload failed', errorCode: 'UPLOAD_FAILED' });
+            }
+        }
+
+        let location = null; // Only set if geocoding succeeds
+        let validPincode = req.body.pincode || '';
+
+        try {
+            if (validPincode) {
+                const pinData = await validatePincode(validPincode);
+                if (pinData && pinData.lat) {
+                    location = { lat: pinData.lat, lng: pinData.lng };
+                }
+            }
+            if (!location && address) {
+                const query = encodeURIComponent(address);
+                const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+                const geoData = await geoRes.json();
+                if (geoData && geoData.length > 0) {
+                    location = { lat: parseFloat(geoData[0].lat), lng: parseFloat(geoData[0].lon) };
+                }
+            }
+        } catch (geoErr) {
+            console.error('Vendor Geocoding failed', geoErr);
         }
 
         user = new User({
@@ -96,8 +161,11 @@ exports.registerVendor = async (req, res) => {
             restaurantDetails: {
                 restaurantName,
                 address,
+                pincode: validPincode,
                 cuisine,
                 fssai,
+                imageUrl: restaurantImageUrl,
+                location,
                 documents: {
                     fssaiCertUrl,
                     gstCertUrl,
@@ -110,13 +178,15 @@ exports.registerVendor = async (req, res) => {
         return res.status(201).json({ message: 'Registration successful. Waiting for admin approval.' });
 
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error("Register Vendor Error:", err.message);
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Register Delivery Partner (Multipart)
-exports.registerRider = async (req, res) => {
+exports.registerRider = async (req, res, next) => {
     try {
         const { name, email, password, phone, city, vehicleType, vehicleNumber } = req.body;
 
@@ -125,18 +195,40 @@ exports.registerRider = async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
+        // Password strength validation
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({ 
+                message: 'Password must be at least 8 characters and include an uppercase letter, a number, and a special character.' 
+            });
+        }
+
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Documents
+        // Documents via ImageKit
         let licenseUrl = '';
         let rcUrl = '';
         let aadharUrl = '';
 
         if (req.files) {
-            if (req.files.license && req.files.license[0]) licenseUrl = `/uploads/${req.files.license[0].filename}`;
-            if (req.files.rc && req.files.rc[0]) rcUrl = `/uploads/${req.files.rc[0].filename}`;
-            if (req.files.aadhar && req.files.aadhar[0]) aadharUrl = `/uploads/${req.files.aadhar[0].filename}`;
+            try {
+                if (req.files.license && req.files.license[0]) {
+                    const upload = await imagekit.upload({ file: req.files.license[0].buffer, fileName: req.files.license[0].originalname, folder: '/cravify/riders' });
+                    licenseUrl = upload.url;
+                }
+                if (req.files.rc && req.files.rc[0]) {
+                    const upload = await imagekit.upload({ file: req.files.rc[0].buffer, fileName: req.files.rc[0].originalname, folder: '/cravify/riders' });
+                    rcUrl = upload.url;
+                }
+                if (req.files.aadhar && req.files.aadhar[0]) {
+                    const upload = await imagekit.upload({ file: req.files.aadhar[0].buffer, fileName: req.files.aadhar[0].originalname, folder: '/cravify/riders' });
+                    aadharUrl = upload.url;
+                }
+            } catch (err) {
+                console.error('ImageKit Rider Upload Error:', err);
+                return res.status(500).json({ success: false, message: 'File upload failed', errorCode: 'UPLOAD_FAILED' });
+            }
         }
 
         user = new User({
@@ -163,13 +255,15 @@ exports.registerRider = async (req, res) => {
         return res.status(201).json({ message: 'Registration successful. Waiting for admin approval.' });
 
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error("Register Rider Error:", err.message);
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Login User
-exports.login = async (req, res) => {
+exports.login = async (req, res, next) => {
     try {
         const { email, password } = req.body;
 
@@ -191,13 +285,15 @@ exports.login = async (req, res) => {
         res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
 
     } catch (err) {
-        console.error(err.message);
-        res.status(500).send('Server error');
+        console.error("Login Error:", err.message);
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Google Login SSO
-exports.googleLogin = async (req, res) => {
+exports.googleLogin = async (req, res, next) => {
     try {
         const { credential } = req.body;
         // Skip verification if using dummy key in dev, rely on decoded data
@@ -210,10 +306,10 @@ exports.googleLogin = async (req, res) => {
             });
             payload = ticket.getPayload();
         } else {
-             // DEV MOCK: Decode without verification if no client ID is set
-             payload = jwt.decode(credential);
+            // DEV MOCK: Decode without verification if no client ID is set
+            payload = jwt.decode(credential);
         }
-        
+
         const { email, name } = payload;
 
         let user = await User.findOne({ email });
@@ -238,38 +334,42 @@ exports.googleLogin = async (req, res) => {
 
     } catch (err) {
         console.error("Google Login Error:", err.message);
-        res.status(500).json({ message: 'Google authentication failed' });
+        const error = new Error('Google authentication failed');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Get User Profile
-exports.getProfile = async (req, res) => {
+exports.getProfile = async (req, res, next) => {
     try {
         const user = await User.findById(req.user.id).select('-password');
         res.json(user);
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Forgot Password Flow (Email Link)
-exports.forgotPassword = async (req, res) => {
+exports.forgotPassword = async (req, res, next) => {
     try {
         const { email } = req.body;
         const user = await User.findOne({ email });
-        
+
         if (!user) {
             return res.status(404).json({ message: 'No account with that email found' });
         }
 
         // Generate Reset Token
         const resetToken = crypto.randomBytes(20).toString('hex');
-        
+
         // Hash it and set to User record
         user.resetPasswordToken = crypto.createHash('sha256').update(resetToken).digest('hex');
         user.resetPasswordExpire = Date.now() + 10 * 60 * 1000; // 10 minutes from now
-        
+
         await user.save();
 
         const frontendBaseUrl = req.headers.referer ? new URL(req.headers.referer).origin : (req.headers.origin || 'http://localhost:5173');
@@ -278,11 +378,11 @@ exports.forgotPassword = async (req, res) => {
 
         try {
             // Mocking the transporter if credentials aren't set yet
-            if(!process.env.SMTP_EMAIL || !process.env.SMTP_PASSWORD){
-                 console.log("\n--- DEVELOPMENT MODE EMAIL ---");
-                 console.log(`To: ${user.email}\nSubject: Password Reset Token\nMessage: ${message}`);
-                 console.log("------------------------------\n");
-                 return res.json({ message: 'Email sent (Printed to backend console in DEV mode)' });
+            if (!process.env.SMTP_EMAIL || !process.env.SMTP_PASSWORD) {
+                console.log("\n--- DEVELOPMENT MODE EMAIL ---");
+                console.log(`To: ${user.email}\nSubject: Password Reset Token\nMessage: ${message}`);
+                console.log("------------------------------\n");
+                return res.json({ message: 'Email sent (Printed to backend console in DEV mode)' });
             }
 
             const transporter = nodemailer.createTransport({
@@ -310,12 +410,14 @@ exports.forgotPassword = async (req, res) => {
         }
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };
 
 // Reset Password via Token
-exports.resetPasswordWithToken = async (req, res) => {
+exports.resetPasswordWithToken = async (req, res, next) => {
     try {
         const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
 
@@ -331,7 +433,7 @@ exports.resetPasswordWithToken = async (req, res) => {
         // Set new password
         const salt = await bcrypt.genSalt(10);
         user.password = await bcrypt.hash(req.body.password, salt);
-        
+
         // Clear fields
         user.resetPasswordToken = undefined;
         user.resetPasswordExpire = undefined;
@@ -340,6 +442,8 @@ exports.resetPasswordWithToken = async (req, res) => {
         res.json({ message: 'Password reset successful. You may now log in.' });
     } catch (err) {
         console.error(err.message);
-        res.status(500).send('Server error');
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
     }
 };

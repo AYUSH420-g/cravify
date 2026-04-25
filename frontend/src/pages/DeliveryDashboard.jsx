@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '../layouts/MainLayout';
-import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Loader2, MessageCircle, Send } from 'lucide-react';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import MapComponent from '../components/MapComponent';
 
 const DeliveryDashboard = () => {
     const { token, user } = useAuth();
     const socket = useSocket();
+    const currentUserId = user?.id || user?._id;
     const [isOnline, setIsOnline] = useState(user?.deliveryDetails?.isOnline || false);
     
     // Live data states
@@ -16,12 +18,23 @@ const DeliveryDashboard = () => {
     const [availableOrders, setAvailableOrders] = useState([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatText, setChatText] = useState('');
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const isChatOpenRef = useRef(false);
+    const chatOrderIdRef = useRef(null); // mirrors orderIdRef from customer — never goes stale
+    const [unreadCount, setUnreadCount] = useState(0);
+    const messagesEndRef = useRef(null);
+    const [geoError, setGeoError] = useState('');
+    const [lastLoc, setLastLoc] = useState(null);
 
     // Selected order to accept
     const [showNewOrderModal, setShowNewOrderModal] = useState(false);
     const [selectedOrder, setSelectedOrder] = useState(null);
 
     const [todayEarnings, setTodayEarnings] = useState(0);
+    const [walletBalance, setWalletBalance] = useState(0);
+    const [totalEarnings, setTotalEarnings] = useState(0);
     const [tick, setTick] = useState(0);
 
     useEffect(() => {
@@ -29,30 +42,87 @@ const DeliveryDashboard = () => {
         return () => clearInterval(timer);
     }, []);
 
+    useEffect(() => {
+        isChatOpenRef.current = isChatOpen;
+    }, [isChatOpen]);
+
+    // Keep chatOrderIdRef always fresh — same pattern as customer orderIdRef
+    useEffect(() => {
+        chatOrderIdRef.current = activeOrder?._id || null;
+    }, [activeOrder?._id]);
+
     const [lastEmit, setLastEmit] = useState(0);
+    const mapContainerStyle = {
+        width: '100%',
+        height: '300px'
+    };
+
+    // Default fallback (Ahmedabad area)
+    const defaultCenter = { lat: 23.0225, lng: 72.5714 };
+
+    // Live center
+    const center = lastLoc || defaultCenter;
+
+    const [directions, setDirections] = useState(null);
+
+    // Route fetching is handled by MapComponent via OSRM backend API
 
     // Live Geolocation Tracking
     useEffect(() => {
         if (!isOnline || !activeOrder || !socket) return;
 
+        setGeoError('');
+        const isIdle = activeOrder.status === 'Placed'; // Save battery if order isn't preparing yet
+
         console.log('Starting geolocation watcher...');
         const watchId = navigator.geolocation.watchPosition(
             (position) => {
+                setGeoError('');
                 const now = Date.now();
                 // Throttle: only emit every 5 seconds
                 if (now - lastEmit > 5000) {
-                    const { latitude, longitude } = position.coords;
+                    const { latitude, longitude, accuracy } = position.coords;
+                    
+                    // Accuracy filter: ignore readings worse than 100 meters
+                    if (accuracy > 100) {
+                        console.log('Ignoring inaccurate GPS reading (accuracy > 100m):', accuracy);
+                        return;
+                    }
+
+                    // Jump filter: simple distance check could go here if lastLoc exists
+                    if (lastLoc) {
+                        const distance = Math.sqrt(
+                            Math.pow(latitude - lastLoc.lat, 2) + 
+                            Math.pow(longitude - lastLoc.lng, 2)
+                        );
+                        if (distance < 0.0001) {
+                            console.log('Ignoring stationary location update (distance < 0.0001):', distance);
+                            return;
+                        }
+                    }
+                    setLastLoc({ lat: latitude, lng: longitude });
+
                     console.log(`Sending location: ${latitude}, ${longitude}`);
                     socket.emit('update_location', {
                         orderId: activeOrder._id,
-                        userId: user.id,
+                        userId: currentUserId,
                         location: { lat: latitude, lng: longitude }
+                    }, (response) => {
+                        // Acknowledgement from server
+                        // console.log('Location update acknowledged');
                     });
                     setLastEmit(now);
                 }
             },
-            (err) => console.error('Geolocation error:', err),
-            { enableHighAccuracy: true, maximumAge: 10000 }
+            (err) => {
+                console.error('Geolocation error:', err);
+                if (err.code === err.PERMISSION_DENIED) {
+                    setGeoError('GPS tracking is disabled. Please allow location permissions in your browser.');
+                } else {
+                    setGeoError('Unable to get a stable GPS signal. Trying again...');
+                }
+            },
+            { enableHighAccuracy: !isIdle, maximumAge: 10000, timeout: 15000 }
         );
 
         return () => {
@@ -97,6 +167,71 @@ const DeliveryDashboard = () => {
         };
     }, [socket, isOnline, selectedOrder]);
 
+    // ── CHAT: exact mirror of customer-side pattern ──────────────────────────
+
+    // Register socket listeners ONCE — handlers use refs so they never go stale
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleReceiveMessage = (message) => {
+            console.log('Chat message received by Rider:', message);
+            const msgOrderId = (message.order?._id || message.order || '').toString();
+            const currentOrderId = (chatOrderIdRef.current || '').toString();
+            
+            if (msgOrderId && currentOrderId && msgOrderId === currentOrderId) {
+                setChatMessages((prev) => {
+                    const isDuplicate = prev.some(m => m._id === message._id);
+                    if (isDuplicate) return prev;
+                    
+                    if (!isChatOpenRef.current && message.senderRole !== 'delivery_partner') {
+                        setUnreadCount(c => c + 1);
+                    }
+                    return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        };
+
+        socket.on('receive_message', handleReceiveMessage);
+        socket.on('chat_message', handleReceiveMessage);
+
+        return () => {
+            socket.off('receive_message', handleReceiveMessage);
+            socket.off('chat_message', handleReceiveMessage);
+        };
+    }, [socket]); // socket only — all handlers use refs, never stale
+
+    // Join order room + rejoin on reconnect whenever active order changes
+    useEffect(() => {
+        if (!activeOrder?._id || !socket) return;
+        socket.emit('join_order_room', activeOrder._id);
+        const handleReconnect = () => socket.emit('join_order_room', activeOrder._id);
+        socket.on('connect', handleReconnect);
+        return () => socket.off('connect', handleReconnect);
+    }, [activeOrder?._id, socket]);
+
+    // Load chat history only when orderId actually changes (NOT on every 10s poll)
+    useEffect(() => {
+        if (!activeOrder?._id || !token) return;
+        // Reset messages for new order
+        setChatMessages([]);
+        setUnreadCount(0);
+        fetch(`/api/chat/${activeOrder._id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const sorted = (data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                    setChatMessages(sorted);
+                    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                }
+            })
+            .catch(err => console.error('Chat history load error:', err));
+    }, [activeOrder?._id, token]); // Only re-runs when ORDER changes, not on every poll
+
+    // ────────────────────────────────────────────────────────────────────────
+
     useEffect(() => {
         if (!token) return;
         fetchInitialData();
@@ -104,14 +239,30 @@ const DeliveryDashboard = () => {
         const interval = setInterval(() => {
             fetchActiveOrder();
             if (isOnline) fetchAvailableOrders();
-        }, 15000); // Every 15 seconds
+        }, 10000); // Every 10 seconds
         return () => clearInterval(interval);
     }, [token, isOnline]);
 
     const fetchInitialData = async () => {
         setLoading(true);
-        await Promise.all([fetchActiveOrder(), fetchAvailableOrders()]);
+        await Promise.all([fetchActiveOrder(), fetchAvailableOrders(), fetchWallet()]);
         setLoading(false);
+    };
+
+    const fetchWallet = async () => {
+        try {
+            const res = await fetch('/api/delivery/history', {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setWalletBalance(data.walletBalance || 0);
+                setTotalEarnings(data.totalEarnings || 0);
+                setTodayEarnings(data.todayEarnings || 0);
+            }
+        } catch (err) {
+            console.error('Failed to fetch wallet', err);
+        }
     };
 
     const fetchActiveOrder = async () => {
@@ -209,8 +360,17 @@ const DeliveryDashboard = () => {
 
             if (res.ok) {
                 if (newStatus === 'Delivered') {
+                    // Clean up chat messages for this order
+                    try {
+                        await fetch(`/api/chat/${activeOrder._id}`, {
+                            method: 'DELETE',
+                            headers: { Authorization: `Bearer ${token}` }
+                        });
+                    } catch (e) { console.error('Chat cleanup failed', e); }
                     setActiveOrder(null);
-                    setTodayEarnings(prev => prev + 40);
+                    setChatMessages([]);
+                    setUnreadCount(0);
+                    fetchWallet(); // Refresh earnings from server
                     // After delivery, immediately check for new available orders
                     if (isOnline) fetchAvailableOrders();
                 } else {
@@ -229,6 +389,44 @@ const DeliveryDashboard = () => {
             setActionLoading(false);
         }
     };
+
+    const handleSendChatMessage = async (e) => {
+        e.preventDefault();
+        if (!chatText.trim() || !activeOrder) return;
+
+        const msgText = chatText.trim();
+        setChatText('');
+
+        try {
+            const res = await fetch(`/api/chat/${activeOrder._id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    text: msgText,
+                    senderRole: 'delivery_partner'
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                console.error('Chat send failed:', data.message);
+                setChatText(msgText); // Restore text on failure
+            } else if (data.success && data.message) {
+                setChatMessages(prev => {
+                    if (prev.find(m => m._id === data.message._id)) return prev;
+                    return [...prev, data.message];
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        } catch (err) {
+            console.error('Chat send error:', err);
+            setChatText(msgText); // Restore text on failure
+        }
+    };
+
+
 
     const getStatusProgress = (status) => {
         const steps = ['Preparing', 'ReadyForPickup', 'OutForDelivery', 'Delivered'];
@@ -258,21 +456,21 @@ const DeliveryDashboard = () => {
                     {/* Stats Overview */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                         <Link to="/delivery/earnings" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-green-200 transition-colors cursor-pointer">
-                            <p className="text-gray-500 text-xs">Today's Est Earnings</p>
-                            <h3 className="text-xl font-bold text-dark">₹{todayEarnings}</h3>
+                            <p className="text-gray-500 text-xs">Today's Earnings</p>
+                            <h3 className="text-xl font-bold text-green-600">₹{todayEarnings}</h3>
                         </Link>
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 opacity-50 pointer-events-none">
-                            <p className="text-gray-500 text-xs">Ride Time</p>
-                            <h3 className="text-xl font-bold text-dark">0h 0m</h3>
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                            <p className="text-gray-500 text-xs">Wallet Balance</p>
+                            <h3 className="text-xl font-bold text-dark">₹{walletBalance}</h3>
                         </div>
                         <Link to="/delivery/history" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-primary transition-colors">
-                            <p className="text-gray-500 text-xs">View History</p>
-                            <h3 className="text-lg font-bold text-dark">Orders →</h3>
+                            <p className="text-gray-500 text-xs">Total Earned</p>
+                            <h3 className="text-xl font-bold text-dark">₹{totalEarnings}</h3>
                         </Link>
                         <Link to="/delivery/profile" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
                             <p className="text-gray-500 text-xs">Profile & Ratings</p>
                             <div className="flex items-center gap-1">
-                                <span className="text-xl font-bold text-dark">5.0</span>
+                                <span className="text-xl font-bold text-dark">{user?.deliveryRating?.toFixed(1) || '0.0'}</span>
                                 <span className="text-yellow-500">★</span>
                             </div>
                         </Link>
@@ -287,12 +485,24 @@ const DeliveryDashboard = () => {
                             <div className="bg-primary/5 p-4 flex justify-between items-center border-b border-primary/10">
                                 <div>
                                     <h3 className="font-bold text-lg text-dark">Active Order #{activeOrder._id?.slice(-6).toUpperCase()}</h3>
-                                    <p className="text-sm text-gray-500">Est. Earnings: ₹40</p>
+                                    <p className="text-sm text-gray-500">Est. Earnings: ₹{activeOrder.deliveryEarning || '—'}</p>
                                 </div>
-                                <span className="bg-primary text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
-                                    {activeOrder.status}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className="bg-primary text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                                        {activeOrder.status}
+                                    </span>
+                                </div>
                             </div>
+                            
+                            {geoError && (
+                                <div className="bg-red-50 p-3 mx-6 mt-4 rounded-lg flex items-start gap-3 border border-red-100">
+                                    <AlertTriangle className="text-red-500 shrink-0 mt-0.5" size={18} />
+                                    <div>
+                                        <h4 className="text-red-800 text-sm font-bold">Location Error</h4>
+                                        <p className="text-red-600 text-xs mt-1">{geoError}</p>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="p-6">
                                 {/* Progress Bar */}
@@ -301,6 +511,15 @@ const DeliveryDashboard = () => {
                                         className="bg-green-500 h-2 rounded-full transition-all duration-500"
                                         style={{ width: `${getStatusProgress(activeOrder.status)}%` }}
                                     ></div>
+                                </div>
+
+                                {/* 🚀 LIVE MAP */}
+                                <div className="mb-6 rounded-xl overflow-hidden shadow-inner border border-gray-200 h-64 z-0 relative">
+                                    <MapComponent
+                                        riderLocation={lastLoc}
+                                        restaurantLocation={activeOrder?.restaurant?.location}
+                                        customerLocation={activeOrder?.deliveryLocation || activeOrder?.deliveryAddress?.location} 
+                                    />
                                 </div>
 
                                 {/* Locations */}
@@ -312,7 +531,7 @@ const DeliveryDashboard = () => {
                                             </div>
                                             <div className="w-0.5 h-full bg-gray-200 my-1"></div>
                                         </div>
-                                        <div>
+                                        <div className="flex-1">
                                             <p className="text-xs text-gray-500 uppercase font-bold">Pick Up</p>
                                             <h4 className="font-bold text-lg">{activeOrder.restaurant?.name}</h4>
                                             <p className="text-gray-500 text-sm">{activeOrder.restaurant?.address}</p>
@@ -328,6 +547,11 @@ const DeliveryDashboard = () => {
                                                 <p className="mt-2 text-primary font-medium text-sm italic">Restaurant is still preparing the food...</p>
                                             )}
                                         </div>
+                                        <div>
+                                            <button onClick={() => window.open(`geo:${activeOrder.restaurant?.location?.lat},${activeOrder.restaurant?.location?.lng}`)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full" title="Navigate">
+                                                <Navigation size={20} />
+                                            </button>
+                                        </div>
                                     </div>
 
                                     <div className="flex gap-4">
@@ -336,7 +560,7 @@ const DeliveryDashboard = () => {
                                                 <MapPin size={16} />
                                             </div>
                                         </div>
-                                        <div>
+                                        <div className="flex-1">
                                             <p className="text-xs text-gray-500 uppercase font-bold">Drop Off</p>
                                             <h4 className="font-bold text-lg">{activeOrder.user?.name}</h4>
                                             <p className="text-gray-500 text-sm">
@@ -347,11 +571,32 @@ const DeliveryDashboard = () => {
                                                     <Button size="sm" variant="outline" className="text-blue-600 border-blue-200 hover:bg-blue-50">
                                                         <Phone size={14} className="mr-1" /> {activeOrder.user?.phone || 'Call Customer'}
                                                     </Button>
+
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="relative text-dark border-gray-200 hover:bg-gray-50"
+                                                        onClick={() => { setIsChatOpen(true); setUnreadCount(0); }}
+                                                    >
+                                                        <MessageCircle size={14} className="mr-1" /> Chat
+                                                        {unreadCount > 0 && (
+                                                            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">
+                                                                {unreadCount}
+                                                            </span>
+                                                        )}
+                                                    </Button>
                                                     
                                                     <Button size="sm" variant="primary" className="bg-green-600 hover:bg-green-700 border-green-600" onClick={() => handleStatusUpdate('Delivered')} disabled={actionLoading}>
                                                         {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Complete Delivery'}
                                                     </Button>
                                                 </div>
+                                            )}
+                                        </div>
+                                        <div>
+                                            {activeOrder.deliveryAddress?.location && (
+                                                <button onClick={() => window.open(`geo:${activeOrder.deliveryAddress.location.lat},${activeOrder.deliveryAddress.location.lng}`)} className="text-blue-500 hover:bg-blue-50 p-2 rounded-full" title="Navigate">
+                                                    <Navigation size={20} />
+                                                </button>
                                             )}
                                         </div>
                                     </div>
@@ -400,7 +645,7 @@ const DeliveryDashboard = () => {
                                                     <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${order.status === 'ReadyForPickup' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600'}`}>
                                                         {order.status === 'ReadyForPickup' ? '✅ Ready to Pickup' : '🍳 Being Prepared'}
                                                     </span>
-                                                    <span className="text-xs text-primary font-bold">₹40.00</span>
+                                                    <span className="text-xs text-primary font-bold">₹{order.deliveryEarning || '—'}</span>
                                                 </div>
                                             </div>
                                             <div className="w-10 h-10 bg-green-50 rounded-full flex items-center justify-center text-green-600">
@@ -424,6 +669,57 @@ const DeliveryDashboard = () => {
                     )}
                 </div>
 
+                {isChatOpen && activeOrder && (
+                    <div className="fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-96 rounded-t-2xl md:rounded-2xl bg-white shadow-2xl border border-gray-100 z-50 flex flex-col pt-2" style={{ height: '500px', maxHeight: '80vh' }}>
+                        <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl">
+                            <div className="flex items-center gap-2">
+                                <MessageCircle size={20} className="text-primary" />
+                                <div>
+                                    <h3 className="font-bold text-dark">
+                                        Chat with Customer
+                                    </h3>
+                                    <p className="text-xs text-gray-400">
+                                        Coordinate order delivery
+                                    </p>
+                                </div>
+                            </div>
+                            <button onClick={() => setIsChatOpen(false)} className="text-gray-400 hover:text-gray-600">
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                            {chatMessages.filter(msg => {
+                                return msg.senderRole === 'customer' || msg.senderRole === 'delivery_partner';
+                            }).map((msg, index) => {
+                                const isMe = msg.senderRole === 'delivery_partner';
+                                return (
+                                    <div key={index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                        <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.senderRole?.replace('_partner', '')}</span>
+                                        <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-dark rounded-bl-sm'}`}>
+                                            {msg.text}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            <div ref={messagesEndRef} />
+                        </div>
+
+                        <form onSubmit={handleSendChatMessage} className="p-4 bg-white border-t border-gray-100 rounded-b-2xl flex gap-2">
+                            <input
+                                type="text"
+                                value={chatText}
+                                onChange={(e) => setChatText(e.target.value)}
+                                placeholder="Message customer..."
+                                className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <button type="submit" disabled={!chatText.trim()} className="p-2 bg-primary text-white rounded-full disabled:opacity-50 hover:bg-red-700 transition">
+                                <Send size={18} className="translate-x-[-1px] translate-y-[1px]" />
+                            </button>
+                        </form>
+                    </div>
+                )}
+
                 {/* New Order details Modal inside Dashboard */}
                 {showNewOrderModal && selectedOrder && (
                     <div className="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center p-4">
@@ -433,8 +729,8 @@ const DeliveryDashboard = () => {
                             </div>
                             <div className="p-6">
                                 <div className="text-center mb-6">
-                                    <h2 className="text-3xl font-bold text-primary">₹40.00</h2>
-                                    <p className="text-gray-500 text-sm">Base Delivery Fate</p>
+                                    <h2 className="text-3xl font-bold text-primary">₹{selectedOrder.deliveryEarning || '—'}</h2>
+                                    <p className="text-gray-500 text-sm">Delivery Earnings {selectedOrder.distanceKm ? `• ${selectedOrder.distanceKm} km` : ''}</p>
                                 </div>
                                 <div className="space-y-4 mb-8">
                                     <div className="flex justify-between items-center">

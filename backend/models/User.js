@@ -11,7 +11,11 @@ const UserSchema = new mongoose.Schema({
         street: String,
         city: String,
         zip: String,
-        type: { type: String, enum: ['Home', 'Work', 'Other'], default: 'Home' }
+        type: { type: String, enum: ['Home', 'Work', 'Other'], default: 'Home' },
+        location: {
+            lat: { type: Number },
+            lng: { type: Number }
+        }
     }],
     role: {
         type: String,
@@ -25,6 +29,11 @@ const UserSchema = new mongoose.Schema({
         address: String,
         cuisine: String,
         fssai: String,
+        imageUrl: String,
+        location: {
+            lat: { type: Number },
+            lng: { type: Number }
+        },
         documents: {
             fssaiCertUrl: String,
             gstCertUrl: String,
@@ -42,11 +51,22 @@ const UserSchema = new mongoose.Schema({
             aadharUrl: String
         }
     },
-    // Real-time tracking
+    // Real-time tracking — no defaults; only set when real GPS data is received
     lastKnownLocation: {
-        lat: { type: Number, default: 23.0225 }, // Default to Ahmedabad
-        lng: { type: Number, default: 72.5714 }
-    }
+        lat: { type: Number },
+        lng: { type: Number }
+    },
+    // Loyalty system
+    loyaltyPoints: { type: Number, default: 0 },
+    totalPointsEarned: { type: Number, default: 0 },
+    // Delivery partner wallet
+    walletBalance: { type: Number, default: 0 },
+    totalEarnings: { type: Number, default: 0 },
+    deliveryRating: { type: Number, default: 0 },
+    numDeliveryRatings: { type: Number, default: 0 }
 }, { timestamps: true });
+
+// email index already created by `unique: true` — no need to duplicate
+UserSchema.index({ role: 1 });
 
 module.exports = mongoose.model('User', UserSchema);

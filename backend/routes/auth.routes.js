@@ -5,24 +5,43 @@ const authMiddleware = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { fileTypeFromBuffer } = require('file-type');
 
-// Ensure uploads directory exists
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir);
-}
+// Use memory storage for ImageKit uploads
+const storage = multer.memoryStorage();
+const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadDir);
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
+// Basic filter for initial check (will be validated again after upload)
+const fileFilter = (req, file, cb) => {
+    if (allowedMimeTypes.includes(file.mimetype)) {
+        cb(null, true);
+    } else {
+        cb(new Error('Invalid file type. Only JPG, PNG, and PDF are allowed.'), false);
     }
-});
+};
 
-const upload = multer({ storage });
+// Middleware to validate actual file content after upload
+const validateFileContent = async (req, res, next) => {
+    if (!req.files) return next();
+    
+    for (const fieldName of Object.keys(req.files)) {
+        for (const file of req.files[fieldName]) {
+            const fileType = await fileTypeFromBuffer(file.buffer);
+            if (!fileType || !allowedMimeTypes.includes(fileType.mime)) {
+                return res.status(400).json({ 
+                    message: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' 
+                });
+            }
+        }
+    }
+    next();
+};
+
+const upload = multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter
+});
 
 // @route   POST api/auth/register
 // @desc    Register user
@@ -30,16 +49,17 @@ const upload = multer({ storage });
 router.post('/register', authController.register);
 
 router.post('/register-vendor', upload.fields([
+    { name: 'restaurantImage', maxCount: 1 },
     { name: 'fssaiCert', maxCount: 1 },
     { name: 'gstCert', maxCount: 1 },
     { name: 'menuCard', maxCount: 1 }
-]), authController.registerVendor);
+]), validateFileContent, authController.registerVendor);
 
 router.post('/register-rider', upload.fields([
     { name: 'license', maxCount: 1 },
     { name: 'rc', maxCount: 1 },
     { name: 'aadhar', maxCount: 1 }
-]), authController.registerRider);
+]), validateFileContent, authController.registerRider);
 // @route   POST api/auth/login
 // @desc    Login user
 // @access  Public

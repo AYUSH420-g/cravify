@@ -10,8 +10,9 @@ exports.getAvailableOrders = async (req, res) => {
             deliveryPartner: null,
             updatedAt: { $gte: thirtyMinsAgo }
         }).populate('restaurant', 'name address location')
-          .populate('user', 'name address')
-          .sort({ createdAt: -1 });
+            .populate('user', 'name address')
+            .select('restaurant user items totalAmount deliveryEarning distanceKm deliveryAddress status createdAt updatedAt')
+            .sort({ createdAt: -1 });
 
         res.json(availableOrders);
     } catch (err) {
@@ -36,14 +37,14 @@ exports.acceptOrder = async (req, res) => {
         }
 
         const thirtyMinsAgo = new Date(Date.now() - 30 * 60 * 1000);
-        
+
         // Atomic Update: Only one rider can set themselves as deliveryPartner if it's currently null
         const order = await Order.findOneAndUpdate(
-            { 
-                _id: orderId, 
-                status: { $in: ['Preparing', 'ReadyForPickup'] }, 
+            {
+                _id: orderId,
+                status: { $in: ['Preparing', 'ReadyForPickup'] },
                 deliveryPartner: null,
-                updatedAt: { $gte: thirtyMinsAgo } 
+                updatedAt: { $gte: thirtyMinsAgo }
             },
             { deliveryPartner: req.user.id },
             { new: true }
@@ -61,7 +62,7 @@ exports.acceptOrder = async (req, res) => {
         const populatedOrder = await Order.findById(order._id)
             .populate('restaurant', 'name image address location')
             .populate('deliveryPartner', 'name phone lastKnownLocation');
-        io.to(`user_${order.user}`).emit('ORDER_STATUS_UPDATED', populatedOrder);
+        io.to(`user_${order.user}`).emit('order_status_updated', populatedOrder);
 
         res.json({ message: 'Order accepted successfully', order });
     } catch (err) {
@@ -77,7 +78,7 @@ exports.getActiveOrder = async (req, res) => {
             deliveryPartner: req.user.id,
             status: { $nin: ['Delivered', 'Cancelled', 'Rejected'] }
         }).populate('restaurant', 'name address location')
-          .populate('user', 'name address phone'); // user needs phone for rider to call
+            .populate('user', 'name address phone'); // user needs phone for rider to call
 
         res.json(activeOrder);
     } catch (err) {
@@ -100,7 +101,7 @@ exports.updateOrderStatus = async (req, res) => {
         // Ensuring we only set forward status updates if valid.
         const allowedStatuses = ['OutForDelivery', 'Delivered'];
         if (!allowedStatuses.includes(status)) {
-             return res.status(400).json({ message: 'Invalid status update by delivery partner' });
+            return res.status(400).json({ message: 'Invalid status update by delivery partner' });
         }
 
         order.status = status;
@@ -112,7 +113,26 @@ exports.updateOrderStatus = async (req, res) => {
             .populate('deliveryPartner', 'name phone lastKnownLocation');
 
         // Notify customer
-        io.to(`user_${order.user}`).emit('ORDER_STATUS_UPDATED', updatedOrder);
+        io.to(`user_${order.user}`).emit('order_status_updated', updatedOrder);
+
+        // On delivery completion — credit loyalty points + delivery earnings
+        if (status === 'Delivered') {
+            // Credit loyalty points to customer
+            const loyaltyController = require('./loyaltyController');
+            await loyaltyController.creditPointsForOrder(order._id);
+
+            // Credit dynamic delivery earnings + customer tips to partner
+            const baseEarning = order.deliveryEarning || 30;
+            const tip = order.tipAmount || 0;
+            const totalRiderEarning = baseEarning + tip;
+
+            await User.findByIdAndUpdate(req.user.id, {
+                $inc: {
+                    walletBalance: totalRiderEarning,
+                    totalEarnings: totalRiderEarning
+                }
+            });
+        }
 
         res.json({ message: `Order status updated to ${status}`, order });
     } catch (err) {
@@ -126,7 +146,7 @@ exports.toggleOnlineStatus = async (req, res) => {
     try {
         const { isOnline } = req.body;
         const user = await User.findById(req.user.id);
-        
+
         if (!user) return res.status(404).json({ message: 'User not found' });
 
         if (!user.deliveryDetails) {
@@ -143,22 +163,45 @@ exports.toggleOnlineStatus = async (req, res) => {
     }
 };
 
-// Get delivered orders history + earnings
+// Get delivered orders history + earnings + wallet
 exports.getHistoryAndEarnings = async (req, res) => {
     try {
+        const user = await User.findById(req.user.id).select('walletBalance totalEarnings name email phone deliveryRating numDeliveryRatings deliveryDetails');
+
         const orders = await Order.find({
             deliveryPartner: req.user.id,
             status: 'Delivered'
-        }).populate('restaurant', 'name').sort({ updatedAt: -1 });
+        }).populate('restaurant', 'name image').populate('user', 'name').sort({ updatedAt: -1 });
 
-        // Currently, assuming flat earning per order based on typical structure, calculate it:
-        const BASE_DELIVERY_FEE = 40; // ₹40 per delivery default 
-        const earnings = orders.length * BASE_DELIVERY_FEE;
+        // Calculate today's earnings dynamically (Base + Tips)
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+        const todayOrders = orders.filter(o => new Date(o.updatedAt) >= todayStart);
+        const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryEarning || 0) + (o.tipAmount || 0), 0);
+        const totalEarningsCalc = orders.reduce((sum, o) => sum + (o.deliveryEarning || 0) + (o.tipAmount || 0), 0);
+
+        // Calculate average earning per delivery
+        const avgEarning = orders.length > 0 ? Math.round(totalEarningsCalc / orders.length) : 0;
 
         res.json({
             history: orders,
-            earnings,
-            deliveriesCount: orders.length
+            walletBalance: user?.walletBalance || 0,
+            totalEarnings: user?.totalEarnings || totalEarningsCalc,
+            todayEarnings,
+            deliveriesCount: orders.length,
+            todayDeliveries: todayOrders.length,
+            avgEarning,
+            earnings: totalEarningsCalc,
+            riderProfile: {
+                name: user?.name,
+                email: user?.email,
+                phone: user?.phone,
+                rating: user?.deliveryRating || 0,
+                numRatings: user?.numDeliveryRatings || 0,
+                vehicleType: user?.deliveryDetails?.vehicleType || '',
+                vehicleNumber: user?.deliveryDetails?.vehicleNumber || '',
+                isOnline: user?.deliveryDetails?.isOnline || false
+            }
         });
     } catch (err) {
         console.error(err.message);

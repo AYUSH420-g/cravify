@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import { Search, MapPin, Bike, Loader2, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -41,6 +42,52 @@ const AdminDeliveryPartners = () => {
         );
     }, [searchQuery, riders]);
 
+    const isImageUrl = (url) => /\.(png|jpe?g|webp|gif|bmp|avif)(\?.*)?$/i.test(url || '');
+
+    const getDeliveryDocuments = (rider) => {
+        const documents = rider?.deliveryDetails?.documents || rider?.documents || rider?.deliveryDocuments;
+
+        if (!documents) return [];
+
+        if (Array.isArray(documents)) {
+            return documents
+                .filter(Boolean)
+                .map((document, index) => {
+                    if (typeof document === 'string') {
+                        return {
+                            key: `document-${index}`,
+                            label: `Document ${index + 1}`,
+                            url: document
+                        };
+                    }
+
+                    return {
+                        key: document.key || document.name || `document-${index}`,
+                        label: document.label || document.name || `Document ${index + 1}`,
+                        url: document.url || document.fileUrl || document.file
+                    };
+                });
+        }
+
+        return [
+            {
+                key: 'licenseUrl',
+                label: 'Driving License',
+                url: documents.licenseUrl
+            },
+            {
+                key: 'rcUrl',
+                label: 'RC Book',
+                url: documents.rcUrl
+            },
+            {
+                key: 'aadharUrl',
+                label: 'Aadhar Card',
+                url: documents.aadharUrl
+            }
+        ];
+    };
+
     return (
         <MainLayout>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -74,7 +121,7 @@ const AdminDeliveryPartners = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filtered.map(rider => (
-                            <div key={rider._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between">
+                            <Link to={`/admin/delivery-partners/${rider._id}`} key={rider._id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col justify-between hover:shadow-md transition-shadow cursor-pointer block">
                                 <div>
                                     <div className="flex justify-between items-start mb-4">
                                         <div className="flex items-center gap-3">
@@ -91,17 +138,34 @@ const AdminDeliveryPartners = () => {
                                     </div>
                                     <div className="space-y-2 mt-4 text-sm text-gray-600">
                                         <p><strong>Phone:</strong> {rider.phone || 'N/A'}</p>
-                                        <p><strong>Vehicle:</strong> {rider.riderDetails?.vehicleType || 'Not specified'}</p>
-                                        <p><strong>License:</strong> {rider.riderDetails?.licenseNumber || 'Not provided'}</p>
+                                        <p><strong>Vehicle:</strong> {rider.deliveryDetails?.vehicleType || rider.riderDetails?.vehicleType || 'Not specified'}</p>
+                                        <p><strong>License:</strong> {rider.deliveryDetails?.vehicleNumber || rider.riderDetails?.licenseNumber || 'Not provided'}</p>
                                     </div>
                                 </div>
-                                <div className="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center">
-                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold
-                                        ${rider.isVerified ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
-                                        {rider.isVerified ? 'ACTIVE' : 'PENDING'}
-                                    </span>
+                                <div className="mt-6 pt-4 border-t border-gray-100">
+                                    <div className="grid grid-cols-3 gap-3 mb-4">
+                                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                            <p className="text-xs text-gray-500">Rating</p>
+                                            <p className="font-bold text-dark">{rider.deliveryRating?.toFixed(1) || '0.0'} ★</p>
+                                        </div>
+                                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                            <p className="text-xs text-gray-500">Wallet</p>
+                                            <p className="font-bold text-dark">₹{rider.walletBalance || 0}</p>
+                                        </div>
+                                        <div className="bg-gray-50 rounded-lg p-2 text-center">
+                                            <p className="text-xs text-gray-500">Earned</p>
+                                            <p className="font-bold text-dark">₹{rider.totalEarnings || 0}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className={`px-2 py-1 rounded-full text-xs font-semibold
+                                            ${rider.isVerified ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'}`}>
+                                            {rider.isVerified ? 'ACTIVE' : 'PENDING'}
+                                        </span>
+                                        <span className="text-xs text-gray-400">Joined {new Date(rider.createdAt).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</span>
+                                    </div>
                                 </div>
-                            </div>
+                            </Link>
                         ))}
                     </div>
                 )}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
-import { Search, MapPin, Store, Wifi, WifiOff, UtensilsCrossed, Loader2 } from 'lucide-react';
+import { Search, MapPin, Store, Wifi, WifiOff, UtensilsCrossed, Loader2, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const AdminRestaurants = () => {
@@ -78,7 +79,7 @@ const AdminRestaurants = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filtered.map(rest => (
-                            <div key={rest._id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
+                            <Link to={`/admin/restaurants/${rest._id}`} key={rest._id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow cursor-pointer block">
                                 {/* Image */}
                                 <div className="h-36 bg-gray-100 relative overflow-hidden">
                                     {rest.image ? (
@@ -103,10 +104,10 @@ const AdminRestaurants = () => {
                                 <div className="p-5">
                                     <h3 className="font-bold text-lg text-dark mb-1">{rest.name}</h3>
 
-                                    {rest.address && (
+                                {rest.address && (
                                         <div className="flex items-start gap-1.5 text-gray-500 text-sm mb-2">
                                             <MapPin size={14} className="mt-0.5 shrink-0" />
-                                            <span className="line-clamp-1">{rest.address}</span>
+                                            <span className="line-clamp-1">{rest.address} {rest.pincode ? `(${rest.pincode})` : ''}</span>
                                         </div>
                                     )}
 
@@ -130,13 +131,14 @@ const AdminRestaurants = () => {
                                         )}
                                     </div>
 
-                                    {rest.rating > 0 && (
-                                        <div className="mt-2 flex items-center gap-1">
-                                            <span className="bg-green-700 text-white text-xs font-bold px-1.5 py-0.5 rounded">{rest.rating} ★</span>
+                                    {(rest.rating > 0 || rest.numRatings > 0) && (
+                                        <div className="mt-2 flex items-center gap-2">
+                                            <span className="bg-green-700 text-white text-xs font-bold px-1.5 py-0.5 rounded flex items-center gap-1">{rest.rating} <Star size={10} className="fill-white"/></span>
+                                            <span className="text-xs text-gray-400">({rest.numRatings || 0} reviews)</span>
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            </Link>
                         ))}
                     </div>
                 )}

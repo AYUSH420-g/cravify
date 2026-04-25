@@ -15,9 +15,6 @@ export const OrderProvider = ({ children }) => {
     useEffect(() => {
         if (token && user?.role === 'customer') {
             fetchActiveOrder();
-            // Fallback polling every 30 seconds
-            const interval = setInterval(fetchActiveOrder, 30000);
-            return () => clearInterval(interval);
         } else {
             setActiveOrder(null);
             setLoading(false);
@@ -36,9 +33,11 @@ export const OrderProvider = ({ children }) => {
                 }
             };
 
+            socket.on('order_status_updated', handleStatusUpdate);
             socket.on('ORDER_STATUS_UPDATED', handleStatusUpdate);
 
             return () => {
+                socket.off('order_status_updated', handleStatusUpdate);
                 socket.off('ORDER_STATUS_UPDATED', handleStatusUpdate);
             };
         }

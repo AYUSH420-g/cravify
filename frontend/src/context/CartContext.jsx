@@ -57,15 +57,18 @@ export const CartProvider = ({ children }) => {
     };
 
     const removeFromCart = (itemId) => {
-        setCartItems(prev => prev.filter(i => (i._id || i.id) !== itemId));
-        if (cartItems.length <= 1) {
-            setRestaurant(null);
-        }
+        setCartItems(prev => {
+            const newItems = prev.filter(i => (i._id || i.id) !== itemId);
+            if (newItems.length === 0) {
+                setRestaurant(null);
+            }
+            return newItems;
+        });
     };
 
     const updateQuantity = (itemId, type) => {
         setCartItems(prev => {
-            return prev.map(item => {
+            const newItems = prev.map(item => {
                 if ((item._id || item.id) === itemId) {
                     const newQuantity = type === 'plus' ? item.quantity + 1 : item.quantity - 1;
                     if (newQuantity <= 0) return null;
@@ -73,11 +76,12 @@ export const CartProvider = ({ children }) => {
                 }
                 return item;
             }).filter(Boolean);
-        });
 
-        if (cartItems.length === 1 && cartItems[0].quantity === 1 && type === 'minus') {
-            setRestaurant(null);
-        }
+            if (newItems.length === 0) {
+                setRestaurant(null);
+            }
+            return newItems;
+        });
     };
 
     const clearCart = () => {

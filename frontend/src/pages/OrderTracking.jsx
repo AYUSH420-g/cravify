@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import Button from '../components/Button';
-import { Phone, MessageSquare, MapPin, CheckCircle, Package, Loader2 } from 'lucide-react';
+import { Phone, MessageSquare, MapPin, CheckCircle, Package, Loader2, MessageCircle, Send, Sparkles, Leaf } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useNavigate } from 'react-router-dom';
 import MapComponent from '../components/MapComponent';
+import RateFoodModal from '../components/RateFoodModal';
 
 const OrderTracking = () => {
     const { token } = useAuth();
@@ -14,6 +15,25 @@ const OrderTracking = () => {
     const [order, setOrder] = useState(null);
     const [loading, setLoading] = useState(true);
     const [riderLocation, setRiderLocation] = useState(null);
+    const [messages, setMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const { user } = useAuth();
+    const messagesEndRef = useRef(null);
+    const isChatOpenRef = useRef(false);
+    const orderIdRef = useRef(null); // always fresh orderId for socket handlers
+
+    useEffect(() => {
+        isChatOpenRef.current = isChatOpen;
+    }, [isChatOpen]);
+
+    useEffect(() => {
+        orderIdRef.current = order?._id || null;
+    }, [order?._id]);
+
+    // Review modal state
+    const [showReviewModal, setShowReviewModal] = useState(false);
 
     useEffect(() => {
         fetchLatestActiveOrder();
@@ -22,67 +42,168 @@ const OrderTracking = () => {
         return () => clearInterval(interval);
     }, []);
 
+    // Register socket listeners once — handlers use refs so they never go stale
     useEffect(() => {
-        if (order && socket) {
-            // Join the tracking room for this specific order
-            socket.emit('join_order_room', order._id);
+        if (!socket) return;
 
-            const handleLocationUpdate = (data) => {
-                if (data.orderId === order._id) {
-                    setRiderLocation(data.location);
-                }
-            };
-
-            // Listen for real-time status updates (partner assigned, status change, etc.)
-            const handleStatusUpdate = (updatedOrder) => {
-                if (updatedOrder?._id === order._id) {
-                    setOrder(updatedOrder);
-                    // Update rider location if partner has lastKnownLocation
-                    if (updatedOrder.deliveryPartner?.lastKnownLocation) {
-                        setRiderLocation(updatedOrder.deliveryPartner.lastKnownLocation);
+        const handleReceiveMessage = (message) => {
+            console.log('Chat message received:', message);
+            const msgOrderId = (message.order?._id || message.order || '').toString();
+            const currentOrderId = (orderIdRef.current || '').toString();
+            
+            if (msgOrderId && currentOrderId && msgOrderId === currentOrderId) {
+                setMessages((prev) => {
+                    const isDuplicate = prev.some(m => m._id === message._id);
+                    if (isDuplicate) return prev;
+                    
+                    if (!isChatOpenRef.current && message.senderRole !== 'customer') {
+                        setUnreadCount(c => c + 1);
                     }
+                    return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        };
+
+        const handleLocationUpdate = (data) => {
+            if (data.orderId === orderIdRef.current) setRiderLocation(data.location);
+        };
+
+        const handleStatusUpdate = (updatedOrder) => {
+            if (updatedOrder?._id === orderIdRef.current) {
+                setOrder(updatedOrder);
+                if (updatedOrder.deliveryPartner?.lastKnownLocation) {
+                    setRiderLocation(updatedOrder.deliveryPartner.lastKnownLocation);
                 }
-            };
+            }
+        };
 
-            socket.on('location_update', handleLocationUpdate);
-            socket.on('ORDER_STATUS_UPDATED', handleStatusUpdate);
+        socket.on('receive_message', handleReceiveMessage);
+        socket.on('chat_message', handleReceiveMessage);
+        socket.on('location_update', handleLocationUpdate);
+        socket.on('order_status_updated', handleStatusUpdate);
 
-            return () => {
-                socket.off('location_update', handleLocationUpdate);
-                socket.off('ORDER_STATUS_UPDATED', handleStatusUpdate);
-            };
-        }
+        return () => {
+            socket.off('receive_message', handleReceiveMessage);
+            socket.off('chat_message', handleReceiveMessage);
+            socket.off('location_update', handleLocationUpdate);
+            socket.off('order_status_updated', handleStatusUpdate);
+        };
+    }, [socket]); // socket only — all handlers use refs
+
+    // Join room + rejoin on reconnect whenever order changes
+    useEffect(() => {
+        if (!order?._id || !socket) return;
+        socket.emit('join_order_room', order._id);
+        const handleReconnect = () => { socket.emit('join_order_room', order._id); fetchLatestActiveOrder(); };
+        socket.on('connect', handleReconnect);
+        return () => socket.off('connect', handleReconnect);
     }, [order?._id, socket]);
+
+    // Load chat history whenever order changes
+    useEffect(() => {
+        if (!order?._id || !token) return;
+        // Reset so stale messages from a previous order never linger
+        setMessages([]);
+        setUnreadCount(0);
+        fetch(`/api/chat/${order._id}`, { headers: { 'x-auth-token': token } })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    const sorted = (data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                    setMessages(sorted);
+                    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                }
+            })
+            .catch(err => console.error('Chat history load error:', err));
+    }, [order?._id, token]);
+
+    const handleSendMessage = async (e) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !order) return;
+
+        const msgText = newMessage.trim();
+        setNewMessage('');
+
+        try {
+            const res = await fetch(`/api/chat/${order._id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({
+                    text: msgText,
+                    senderRole: 'customer'
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                console.error('Chat send failed:', data.message);
+                setNewMessage(msgText);
+            } else if (data.success && data.message) {
+                // Optimistically/directly add to local state
+                setMessages(prev => {
+                    if (prev.find(m => m._id === data.message._id)) return prev;
+                    return [...prev, data.message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        } catch (err) {
+            console.error('Chat send error:', err);
+            setNewMessage(msgText);
+        }
+    };
 
     const fetchLatestActiveOrder = async () => {
         try {
-            const res = await fetch('/api/customer/orders', {
+            const res = await fetch('/api/customer/orders/active', {
                 headers: { 'x-auth-token': token }
             });
             if (res.ok) {
                 const data = await res.json();
-                // Find highest priority active order (not cancelled, not delivered)
-                const activeOrders = data.filter(o => !['Delivered', 'Cancelled'].includes(o.status));
-                if (activeOrders.length > 0) {
-                    activeOrders.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-                    const currentOrder = activeOrders[0];
-                    setOrder(currentOrder);
+                setOrder(data || null);
 
-                    // If we have a partner and no live location yet, use their last known position
-                    if (currentOrder.deliveryPartner && !riderLocation) {
-                        setRiderLocation(currentOrder.deliveryPartner.lastKnownLocation);
-                    }
-                } else {
-                    // Fallback to most recent only if we don't already have an active order context
-                    if (!order && data.length > 0) {
-                        setOrder(data[0]);
-                    }
+                if (data?.deliveryPartner?.lastKnownLocation) {
+                    setRiderLocation(data.deliveryPartner.lastKnownLocation);
                 }
             }
         } catch (err) {
             console.error('Failed to fetch order', err);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const isDelivered = order?.status === 'Delivered';
+    const isCancelled = order?.status === 'Cancelled';
+    const isRejected = order?.status === 'Rejected';
+    const isActive = !isDelivered && !isCancelled && !isRejected;
+
+    // Auto-prompt review when order is delivered and unrated
+    useEffect(() => {
+        if (isDelivered && !order.restaurantRating && !showReviewModal) {
+            const timer = setTimeout(() => setShowReviewModal(true), 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [isDelivered, order?.restaurantRating]);
+
+    const handleSubmitReview = async (reviewData) => {
+        try {
+            const res = await fetch(`/api/customer/orders/${reviewData.orderId}/rate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({
+                    restaurantRating: reviewData.restaurantRating,
+                    deliveryRating: reviewData.deliveryRating,
+                    comment: reviewData.comment
+                })
+            });
+            if (res.ok) {
+                fetchLatestActiveOrder();
+            }
+        } catch (e) {
+            console.error('Review submit error:', e);
         }
     };
 
@@ -111,11 +232,6 @@ const OrderTracking = () => {
         );
     }
 
-    const isDelivered = order.status === 'Delivered';
-    const isCancelled = order.status === 'Cancelled';
-    const isRejected = order.status === 'Rejected';
-    const isActive = !isDelivered && !isCancelled && !isRejected;
-
     // Define steps
     const steps = [
         { key: 'Placed', label: 'Ordered', value: 1 },
@@ -133,7 +249,10 @@ const OrderTracking = () => {
     if (order.status === 'Delivered') progressValue = 5;
     if (isCancelled || isRejected) progressValue = 0;
 
-    const progressPercentage = ((progressValue - 1) / (steps.length - 1)) * 100;
+    const progressPercentage = Math.min(
+        ((progressValue - 1) / (steps.length - 1)) * 100,
+        100
+    );
 
     return (
         <MainLayout>
@@ -142,48 +261,64 @@ const OrderTracking = () => {
                 <div className={`${isCancelled || isRejected ? 'bg-red-900' : 'bg-dark'} text-white py-12`}>
                     <div className="max-w-4xl mx-auto px-4 text-center">
                         <h1 className="text-2xl md:text-3xl font-bold mb-2">
-                            {isCancelled ? 'Order Cancelled' : 
-                             isRejected ? 'Order Declined by Restaurant' :
-                             isDelivered ? 'Order Delivered Successfully' : 
-                             `Arriving from ${order.restaurant?.name || 'Restaurant'}`}
+                            {isCancelled ? 'Order Cancelled' :
+                                isRejected ? 'Order Declined by Restaurant' :
+                                    isDelivered ? 'Order Delivered Successfully' :
+                                        `Arriving from ${order.restaurant?.name || 'Restaurant'}`}
                         </h1>
                         {isRejected && order.rejectionReason && (
                             <p className="text-red-200 text-sm mb-6">Reason: {order.rejectionReason}</p>
                         )}
                         {isCancelled && (
-                             <p className="text-red-200 text-sm mb-6">Your order was cancelled by an admin.</p>
+                            <p className="text-red-200 text-sm mb-6">Your order was cancelled by an admin.</p>
                         )}
 
                         {!(isCancelled || isRejected) && (
-                            <div className="flex items-center justify-between relative px-4 md:px-12 mt-12 mb-4">
+                            <div className="relative mt-12 mb-8">
+
                                 {/* Base line */}
-                                <div className="absolute left-10 md:left-20 right-10 md:right-20 top-1/2 -translate-y-1/2 h-1 bg-gray-700 -z-0"></div>
+                                <div className="absolute top-1/2 left-0 right-0 h-1 bg-gray-700 -translate-y-1/2"></div>
+
                                 {/* Active line */}
-                                <div 
-                                    className="absolute left-10 md:left-20 top-1/2 -translate-y-1/2 h-1 bg-green-500 -z-0 transition-all duration-500"
-                                    style={{ width: `calc(${progressPercentage}% - 40px)` }}
+                                <div
+                                    className="absolute top-1/2 left-0 h-1 bg-green-500 -translate-y-1/2 transition-all duration-500"
+                                    style={{ width: `${progressPercentage}%` }}
                                 ></div>
 
-                                {steps.map((step, index) => {
-                                    const isCompleted = progressValue > step.value;
-                                    const isCurrent = progressValue === step.value;
-                                    
-                                    return (
-                                        <div key={step.key} className="relative z-10 flex flex-col items-center gap-2">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
-                                                ${isCompleted ? 'bg-green-500 text-white' : 
-                                                  isCurrent ? 'bg-green-500 text-white border-4 border-dark animate-pulse' : 
-                                                  'bg-gray-700 text-gray-400'}`}
-                                            >
-                                                {isCompleted ? <CheckCircle size={16} /> : step.value}
+                                {/* Steps */}
+                                <div className="flex justify-between items-center relative">
+                                    {steps.map((step) => {
+                                        const isCompleted = progressValue >= step.value;
+                                        const isCurrent = progressValue === step.value && !isDelivered;
+
+                                        return (
+                                            <div key={step.key} className="flex flex-col items-center relative z-10">
+
+                                                <div
+                                                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all
+                                                    ${isCompleted
+                                                            ? 'bg-green-500 text-white'
+                                                            : isCurrent
+                                                                ? 'bg-green-500 text-white border-4 border-dark animate-pulse'
+                                                                : 'bg-gray-700 text-gray-400'
+                                                        }`}
+                                                >
+                                                    {isCompleted ? <CheckCircle size={16} /> : step.value}
+                                                </div>
+
+                                                <span
+                                                    className={`text-xs mt-2 whitespace-nowrap 
+                                                    ${isCompleted || isCurrent
+                                                            ? 'font-bold text-white'
+                                                            : 'text-gray-400'
+                                                        }`}
+                                                >
+                                                    {step.label}
+                                                </span>
                                             </div>
-                                            <span className={`text-xs absolute -bottom-6 whitespace-nowrap 
-                                                ${isCurrent || isCompleted ? 'font-bold text-white' : 'font-medium text-gray-400'}`}>
-                                                {step.label}
-                                            </span>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -192,10 +327,10 @@ const OrderTracking = () => {
                 <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Live Tracking Map */}
                     <div className="lg:col-span-2 bg-gray-100 rounded-3xl h-[500px] relative overflow-hidden shadow-inner border border-gray-200">
-                        <MapComponent 
+                        <MapComponent
                             riderLocation={riderLocation}
                             restaurantLocation={order.restaurant?.location}
-                            customerLocation={{ lat: (order.restaurant?.location?.lat || 23.0225) + 0.01, lng: (order.restaurant?.location?.lng || 72.5714) + 0.01 }}
+                            customerLocation={order.deliveryLocation || order.user?.addresses?.[0]?.location}
                         />
                     </div>
 
@@ -211,7 +346,14 @@ const OrderTracking = () => {
                                             {order.deliveryPartner.name?.charAt(0) || 'DP'}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-lg">{order.deliveryPartner.name}</h4>
+                                            <h4 className="font-bold text-lg flex items-center gap-2">
+                                                {order.deliveryPartner.name}
+                                                {['Bicycle', 'EV', 'Electric Scooter'].includes(order.deliveryPartner.deliveryDetails?.vehicleType) && (
+                                                    <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold animate-bounce">
+                                                        <Sparkles size={10} /> ECO-DELIVERY
+                                                    </span>
+                                                )}
+                                            </h4>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                 <span className="text-gray-500 text-xs">On the way to you</span>
@@ -222,8 +364,17 @@ const OrderTracking = () => {
                                         <Button variant="outline" className="flex-1 gap-2 border-gray-200 text-dark hover:bg-gray-50" onClick={() => window.location.href = `tel:${order.deliveryPartner.phone}`}>
                                             <Phone size={18} /> Call
                                         </Button>
-                                        <Button variant="outline" className="flex-1 gap-2 border-gray-200 text-dark hover:bg-gray-50">
+                                        <Button
+                                            variant="outline"
+                                            className="flex-1 gap-2 border-gray-200 text-dark hover:bg-gray-50 relative"
+                                            onClick={() => { setIsChatOpen(true); setUnreadCount(0); }}
+                                        >
                                             <MessageSquare size={18} /> Chat
+                                            {unreadCount > 0 && (
+                                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center border border-white animate-pulse">
+                                                    {unreadCount}
+                                                </span>
+                                            )}
                                         </Button>
                                     </div>
                                 </>
@@ -248,10 +399,10 @@ const OrderTracking = () => {
                             ) : (
                                 <div className="text-center py-4 bg-gray-50 rounded-xl">
                                     <p className="text-gray-500 text-sm">
-                                        {isDelivered ? 'Order has been delivered.' : 
-                                         isCancelled ? 'Order was cancelled.' : 
-                                         isRejected ? 'Order could not be prepared.' :
-                                         'Partner details will appear when order is dispatched.'}
+                                        {isDelivered ? 'Order has been delivered.' :
+                                            isCancelled ? 'Order was cancelled.' :
+                                                isRejected ? 'Order could not be prepared.' :
+                                                    'Partner details will appear when order is dispatched.'}
                                     </p>
                                 </div>
                             )}
@@ -274,10 +425,10 @@ const OrderTracking = () => {
                                 <span className="text-primary text-xl">₹{order.totalAmount?.toFixed(2)}</span>
                             </div>
                             <p className="text-xs text-center text-gray-400 mt-2 font-medium">Paid via {order.paymentMethod}</p>
-                            
-                            <Button 
-                                variant="ghost" 
-                                size="sm" 
+
+                            <Button
+                                variant="ghost"
+                                size="sm"
                                 className="w-full mt-4 text-primary"
                                 onClick={() => navigate('/help')}
                             >
@@ -287,6 +438,57 @@ const OrderTracking = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Chat Drawer/Overlay Component */}
+            {isChatOpen && (
+                <div className="fixed bottom-0 right-0 md:bottom-6 md:right-6 w-full md:w-96 rounded-t-2xl md:rounded-2xl bg-white shadow-2xl border border-gray-100 z-50 flex flex-col pt-2" style={{ height: '500px', maxHeight: '80vh' }}>
+                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-2xl">
+                        <div className="flex items-center gap-2">
+                            <MessageCircle size={20} className="text-primary" />
+                            <h3 className="font-bold text-dark">Order Chat</h3>
+                        </div>
+                        <button onClick={() => setIsChatOpen(false)} className="text-gray-400 hover:text-gray-600">
+                            ✕
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                        {messages.filter(msg => ['customer', 'delivery_partner'].includes(msg.senderRole)).map((msg) => {
+                            const isMe = msg.senderRole === 'customer';
+                            return (
+                                <div key={msg._id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                                    <span className="text-[10px] text-gray-400 mb-1 ml-1">{msg.senderRole?.replace('_partner', '')}</span>
+                                    <div className={`px-4 py-2 rounded-2xl max-w-[85%] text-sm ${isMe ? 'bg-primary text-white rounded-br-sm' : 'bg-white border border-gray-100 text-dark rounded-bl-sm'}`}>
+                                        {msg.text}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-gray-100 rounded-b-2xl flex gap-2">
+                        <input
+                            type="text"
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Type a message..."
+                            className="flex-1 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                        <button type="submit" disabled={!newMessage.trim()} className="p-2 bg-primary text-white rounded-full disabled:opacity-50 hover:bg-red-700 transition">
+                            <Send size={18} className="translate-x-[-1px] translate-y-[1px]" />
+                        </button>
+                    </form>
+                </div>
+            )}
+
+            {/* Review Modal — auto-opens on delivery */}
+            <RateFoodModal
+                isOpen={showReviewModal}
+                onClose={() => setShowReviewModal(false)}
+                onSubmit={handleSubmitReview}
+                order={order}
+            />
         </MainLayout>
     );
 };

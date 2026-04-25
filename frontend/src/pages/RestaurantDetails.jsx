@@ -4,6 +4,7 @@ import MenuItem from '../components/MenuItem';
 import CartSidebar from '../components/CartSidebar';
 import { Star, Clock, MapPin, Search } from 'lucide-react';
 import { useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const RestaurantDetails = () => {
     const { id } = useParams();
@@ -147,7 +148,14 @@ const RestaurantDetails = () => {
 
                 {/* Cart Right */}
                 <div className="hidden lg:block lg:col-span-1">
-                    <CartSidebar />
+                    {restaurant.isOnline && (!useAuth().user || useAuth().user.role === 'customer') && <CartSidebar />}
+                    {useAuth().user && useAuth().user.role !== 'customer' && (
+                        <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center">
+                            <p className="text-gray-400 text-sm font-medium">
+                                {useAuth().user.role.replace('_', ' ').toUpperCase()}s cannot place orders
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
         </MainLayout>

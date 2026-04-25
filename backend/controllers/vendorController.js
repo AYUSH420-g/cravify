@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Restaurant = require('../models/Restaurant');
 const Order = require('../models/Order');
+const imagekit = require('../utils/imagekit');
 
 // Ensure a Restaurant document exists for the logged-in vendor
 const getOrCreateRestaurant = async (userId) => {
@@ -17,9 +18,11 @@ const getOrCreateRestaurant = async (userId) => {
         restaurant = new Restaurant({
             vendor: userId,
             name: details.restaurantName || user.name || 'My Restaurant',
-            image: '/uploads/default-restaurant.jpg', // Placeholder
+            image: details.imageUrl || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=600&q=80',
             cuisines,
             address: details.address || '',
+            pincode: details.pincode || '',
+            location: details.location,
             menu: [],
             isOnline: false
         });
@@ -31,9 +34,9 @@ const getOrCreateRestaurant = async (userId) => {
 exports.getDashboardData = async (req, res) => {
     try {
         const restaurant = await getOrCreateRestaurant(req.user.id);
-        
+
         // Fetch active orders (not delivered and not cancelled)
-        const liveOrders = await Order.find({ 
+        const liveOrders = await Order.find({
             restaurant: restaurant._id,
             status: { $nin: ['Delivered', 'Cancelled'] }
         }).populate('user', 'name phone').sort({ createdAt: -1 });
@@ -93,10 +96,15 @@ exports.addMenuItem = async (req, res) => {
     try {
         const restaurant = await getOrCreateRestaurant(req.user.id);
         const { name, category, price, isVeg, description } = req.body;
-        
+
         let imageUrl = '';
         if (req.file) {
-            imageUrl = `/uploads/${req.file.filename}`;
+            const uploadRes = await imagekit.upload({
+                file: req.file.buffer, // Buffer from multer memoryStorage
+                fileName: `menu-${Date.now()}-${req.file.originalname}`,
+                folder: '/cravify/menu'
+            });
+            imageUrl = uploadRes.url;
         }
 
         const newItem = {
@@ -137,7 +145,12 @@ exports.updateMenuItem = async (req, res) => {
         if (description !== undefined) restaurant.menu[itemIndex].description = description;
 
         if (req.file) {
-            restaurant.menu[itemIndex].image = `/uploads/${req.file.filename}`;
+            const uploadRes = await imagekit.upload({
+                file: req.file.buffer, // Buffer from multer memoryStorage
+                fileName: `menu-${Date.now()}-${req.file.originalname}`,
+                folder: '/cravify/menu'
+            });
+            restaurant.menu[itemIndex].image = uploadRes.url;
         }
 
         await restaurant.save();
@@ -168,9 +181,12 @@ exports.deleteMenuItem = async (req, res) => {
 exports.getOrders = async (req, res) => {
     try {
         const restaurant = await getOrCreateRestaurant(req.user.id);
+        const limit = parseInt(req.query.limit, 10) || 100;
         const orders = await Order.find({ restaurant: restaurant._id })
             .populate('user', 'name email phone')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .lean();
         res.json(orders);
     } catch (err) {
         console.error(err.message);
@@ -194,8 +210,8 @@ exports.updateOrderStatus = async (req, res) => {
 
         const allowed = allowedTransitions[order.status];
         if (!allowed || !allowed.includes(status)) {
-            return res.status(400).json({ 
-                message: `Cannot change status from '${order.status}' to '${status}'. Allowed: ${allowed?.join(', ') || 'none'}` 
+            return res.status(400).json({
+                message: `Cannot change status from '${order.status}' to '${status}'. Allowed: ${allowed?.join(', ') || 'none'}`
             });
         }
 
@@ -213,7 +229,10 @@ exports.updateOrderStatus = async (req, res) => {
             .populate('deliveryPartner', 'name phone lastKnownLocation');
 
         // Notify the customer specifically (for the global tracking popup)
-        io.to(`user_${order.user}`).emit('ORDER_STATUS_UPDATED', updatedOrder);
+        io.to(`user_${order.user}`).emit('order_status_updated', updatedOrder);
+
+        // Notify the specific order room (for OrderTracking page)
+        io.to(`order_${order._id}`).emit('order_status_updated', updatedOrder);
 
         // Broadcast to delivery partners when order is available for pickup
         if (status === 'Preparing' || status === 'ReadyForPickup') {

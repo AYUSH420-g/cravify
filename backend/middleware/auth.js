@@ -13,7 +13,7 @@ module.exports = function (req, res, next) {
     }
 
     // Check if not token
-    if (!token) {
+    if (!token || token === 'null' || token === 'undefined') {
         return res.status(401).json({ message: 'No token, authorization denied' });
     }
 
@@ -23,6 +23,7 @@ module.exports = function (req, res, next) {
         req.user = decoded.user;
         next();
     } catch (err) {
+        console.error('JWT Verification Error:', err.message, 'Token prefix:', token.substring(0, 10) + '...');
         res.status(401).json({ message: 'Token is not valid' });
     }
 };

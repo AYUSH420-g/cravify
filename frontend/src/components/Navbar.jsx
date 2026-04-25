@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MapPin, Search, ShoppingBag, User, ChevronDown, Menu, X, LogOut, Grid, Store, Bike } from 'lucide-react';
+import { MapPin, Search, ShoppingBag, User, ChevronDown, Menu, X, LogOut, Grid, Store, Bike, Star, History } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import Button from './Button';
 import { useCart } from '../context/CartContext';
@@ -14,7 +14,8 @@ const Navbar = () => {
 
     const handleNavSearch = (e) => {
         if (e.key === 'Enter' && navSearch.trim()) {
-            navigate(`/search?q=${encodeURIComponent(navSearch.trim())}`);
+            const sanitizedQuery = navSearch.trim().replace(/\.+$/, '');
+            navigate(`/search?q=${encodeURIComponent(sanitizedQuery)}`);
             setNavSearch('');
             setIsMobileMenuOpen(false);
         }
@@ -32,7 +33,7 @@ const Navbar = () => {
                 <div className="flex items-center gap-4 md:gap-8 min-w-fit">
                     <Link to="/" className="text-2xl md:text-3xl font-bold text-primary tracking-tight">Cravify</Link>
 
-                    {(!user || user.role === 'customer' || user.role === 'admin') && (
+                    {(!user || user.role === 'customer') && (
                         <div className="hidden md:flex items-center gap-2 text-dark hover:text-primary cursor-pointer transition-colors group text-sm max-w-[200px] truncate">
                             <MapPin size={18} className="group-hover:text-primary shrink-0" />
                             <span className="font-medium truncate">Gujarat, India</span>
@@ -42,7 +43,7 @@ const Navbar = () => {
                 </div>
 
                 {/* Desktop Search Bar */}
-                {(!user || user.role === 'customer' || user.role === 'admin') && (
+                {(!user || user.role === 'customer') && (
                     <div className="flex-1 max-w-xl hidden md:block">
                         <div className="relative group">
                             <input
@@ -60,15 +61,16 @@ const Navbar = () => {
 
                 {/* Desktop Right Actions */}
                 <div className="hidden md:flex items-center gap-8">
-                    {(!user || user.role === 'customer' || user.role === 'admin') && (
+                    {(!user || user.role === 'customer') && (
                         <div className="flex items-center gap-6 text-dark font-medium text-sm">
                             <Link to="/search" className="hover:text-primary transition-colors flex items-center gap-2">
                                 <Search size={18} />
                                 <span>Search</span>
                             </Link>
                             <Link to="/offers" className="hover:text-primary transition-colors">Offers</Link>
-                            <Link to="/partner" className="hover:text-primary transition-colors">Partner with Us</Link>
-                            <Link to="/ride" className="hover:text-primary transition-colors">Ride with Us</Link>
+                            <Link to="/loyalty" className="hover:text-primary transition-colors flex items-center gap-1"><Star size={14} className="text-yellow-500" />Rewards</Link>
+                            <Link to="/partner" className="hover:text-primary transition-colors">Add Restaurant</Link>
+                            <Link to="/delivery/signup" className="hover:text-primary transition-colors hover:font-bold">Ride with Us</Link>
                             <Link to="/help" className="hover:text-primary transition-colors">Help</Link>
                         </div>
                     )}
@@ -85,9 +87,14 @@ const Navbar = () => {
                                 )}
 
                                 {user.role === 'restaurant_partner' && (
-                                    <Link to="/vendor/dashboard" className="text-dark hover:text-primary transition-colors" title="Vendor Dashboard">
-                                        <Store size={24} />
-                                    </Link>
+                                    <div className="flex items-center gap-4">
+                                        <Link to="/vendor/dashboard" className="text-dark hover:text-primary transition-colors" title="Vendor Dashboard">
+                                            <Store size={24} />
+                                        </Link>
+                                        <Link to="/vendor/history" className="text-dark hover:text-primary transition-colors" title="Order History">
+                                            <History size={24} />
+                                        </Link>
+                                    </div>
                                 )}
 
                                 {user.role === 'delivery_partner' && (
@@ -112,7 +119,7 @@ const Navbar = () => {
                             </div>
                         )}
 
-                        {(!user || user.role === 'customer' || user.role === 'admin') && (
+                        {(!user || user.role === 'customer') && (
                             <Link to="/cart" className="relative text-dark hover:text-primary transition-colors">
                                 <ShoppingBag size={24} />
                                 {cartCount > 0 && (
@@ -127,7 +134,7 @@ const Navbar = () => {
 
                 {/* Mobile Menu Button */}
                 <div className="md:hidden flex items-center gap-4">
-                    {(!user || user.role === 'customer' || user.role === 'admin') && (
+                    {(!user || user.role === 'customer') && (
                         <Link to="/cart" className="relative text-dark hover:text-primary transition-colors">
                             <ShoppingBag size={24} />
                             {cartCount > 0 && (
@@ -146,7 +153,7 @@ const Navbar = () => {
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
                 <div className="md:hidden absolute top-20 left-0 w-full bg-white shadow-lg border-t border-gray-100 p-4 flex flex-col gap-4">
-                    {(!user || user.role === 'customer' || user.role === 'admin') && (
+                    {(!user || user.role === 'customer') && (
                         <div className="relative group">
                             <input
                                 type="text"
@@ -193,6 +200,9 @@ const Navbar = () => {
                                     <Link to="/vendor/orders" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
                                         <span className="w-5 text-center">📦</span> Orders
                                     </Link>
+                                    <Link to="/vendor/history" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                        <span className="w-5 text-center">📜</span> Order History
+                                    </Link>
                                     <div className="border-b border-gray-100 my-1"></div>
                                 </>
                             )}
@@ -227,10 +237,19 @@ const Navbar = () => {
                         </div>
                     )}
 
-                    {(!user || user.role === 'customer' || user.role === 'admin') && (
+                    {(!user || user.role === 'customer') && (
                         <>
                             <Link to="/offers" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
                                 <span className="w-5 text-center">%</span> Offers
+                            </Link>
+                            <Link to="/loyalty" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                <span className="w-5 text-center">⭐</span> Rewards
+                            </Link>
+                            <Link to="/partner" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                <span className="w-5 text-center">🏪</span> Add Restaurant
+                            </Link>
+                            <Link to="/delivery/signup" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                <span className="w-5 text-center">🛵</span> Ride with Us
                             </Link>
                             <Link to="/help" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
                                 <span className="w-5 text-center">?</span> Help

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '../layouts/MainLayout';
-import { DollarSign, ShoppingBag, Star, Clock, Check, X } from 'lucide-react';
+import { DollarSign, ShoppingBag, Star, Clock, Check, X, MessageCircle, Send } from 'lucide-react';
 import Button from '../components/Button';
 import { useAuth } from '../context/AuthContext';
 import { Link } from 'react-router-dom';
+import { useSocket } from '../context/SocketContext';
 
 const StatCard = ({ title, value, icon: Icon, color }) => (
     <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
@@ -18,11 +19,19 @@ const StatCard = ({ title, value, icon: Icon, color }) => (
 );
 
 const VendorDashboard = () => {
-    const { token } = useAuth();
+    const { token, user } = useAuth();
+    const socket = useSocket();
+    const currentUserId = user?.id || user?._id;
     const [orders, setOrders] = useState([]);
     const [stats, setStats] = useState({ todayEarnings: 0, totalLiveOrders: 0, menuItemsCount: 0 });
     const [restaurant, setRestaurant] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [chatOrder, setChatOrder] = useState(null);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatText, setChatText] = useState('');
+    const [unreadOrders, setUnreadOrders] = useState(new Set());
+    const messagesEndRef = useRef(null);
+    const chatOrderRef = useRef(null);
 
     const fetchDashboard = async () => {
         try {
@@ -65,15 +74,112 @@ const VendorDashboard = () => {
         }
     };
 
-    const handleOrderAction = async (id, actionStatus) => {
+    // Sync chatOrderRef
+    useEffect(() => {
+        chatOrderRef.current = chatOrder;
+    }, [chatOrder]);
+
+    // Join all live order rooms and listen for incoming messages globally
+    useEffect(() => {
+        if (!socket || orders.length === 0) return;
+
+        orders.forEach(order => {
+            socket.emit('join_order_room', order._id);
+        });
+
+        const handleGlobalMessage = (message) => {
+            const msgOrderId = message?.order?._id || message?.order;
+            if (!msgOrderId) return;
+            const msgOrderIdStr = msgOrderId.toString();
+            // If sender is not the restaurant and it's not the currently open chat, mark unread
+            if (message.senderRole !== 'restaurant_partner' && chatOrderRef.current?._id !== msgOrderIdStr) {
+                setUnreadOrders(prev => new Set([...prev, msgOrderIdStr]));
+            }
+        };
+
+        socket.on('receive_message', handleGlobalMessage);
+        return () => socket.off('receive_message', handleGlobalMessage);
+    }, [socket, orders.length]);
+
+    useEffect(() => {
+        if (!chatOrder?._id || !socket) return;
+
+        socket.emit('join_order_room', chatOrder._id);
+
+        const handleReceiveMessage = (message) => {
+            const messageOrderId = message?.order?._id || message?.order;
+            if (messageOrderId?.toString() === chatOrder._id) {
+                setChatMessages((prev) => {
+                    if (prev.find(m => m._id === message._id)) return prev;
+                    return [...prev, message];
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        };
+
+        socket.on('chat_message', handleReceiveMessage);
+        socket.on('receive_message', handleReceiveMessage);
+
+        fetch(`/api/chat/${chatOrder._id}`, {
+            headers: { 'x-auth-token': token }
+        })
+            .then((res) => res.json())
+            .then((data) => {
+                if (data.success) {
+                    setChatMessages(data.data || []);
+                    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+                }
+            })
+            .catch((err) => console.error('Failed to load order chat', err));
+
+        return () => {
+            socket.off('chat_message', handleReceiveMessage);
+            socket.off('receive_message', handleReceiveMessage);
+        };
+    }, [chatOrder?._id, socket, token]);
+
+    const handleSendChatMessage = async (e) => {
+        e.preventDefault();
+        if (!chatText.trim() || !chatOrder) return;
+
+        const msgText = chatText.trim();
+        setChatText('');
+
         try {
+            const res = await fetch(`/api/chat/${chatOrder._id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-auth-token': token
+                },
+                body: JSON.stringify({
+                    text: msgText,
+                    senderRole: 'restaurant_partner'
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                console.error('Chat send failed:', data.message);
+                setChatText(msgText);
+            }
+        } catch (err) {
+            console.error('Chat send error:', err);
+            setChatText(msgText);
+        }
+    };
+
+    const handleOrderAction = async (id, actionStatus, rejectionReason = null) => {
+        try {
+            const body = { status: actionStatus };
+            if (rejectionReason) body.rejectionReason = rejectionReason;
+
             const res = await fetch(`/api/vendor/orders/${id}/status`, {
                 method: 'PUT',
                 headers: { 
                     'Content-Type': 'application/json',
                     'x-auth-token': token 
                 },
-                body: JSON.stringify({ status: actionStatus })
+                body: JSON.stringify(body)
             });
             if (res.ok) {
                 // Use functional update to avoid stale closure
@@ -127,7 +233,13 @@ const VendorDashboard = () => {
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Live Orders */}
                         <div className="lg:col-span-2">
-                            <h2 className="text-xl font-bold text-dark mb-4">Live Orders</h2>
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-xl font-bold text-dark">Live Orders</h2>
+                                <Link to="/vendor/history" className="text-primary hover:text-red-700 text-sm font-bold flex items-center gap-1 transition-colors">
+                                    <span>View Order History</span>
+                                    <Clock size={16} />
+                                </Link>
+                            </div>
                             <div className="space-y-4">
                                 {orders.map((order) => (
                                     <div key={order._id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -152,7 +264,12 @@ const VendorDashboard = () => {
                                         {order.status === 'Placed' ? (
                                             <div className="flex gap-4">
                                                 <button
-                                                    onClick={() => handleOrderAction(order._id, 'Rejected')}
+                                                    onClick={() => {
+                                                        const reason = window.prompt('Please provide a reason for rejection:', 'Items out of stock');
+                                                        if (reason !== null) {
+                                                            handleOrderAction(order._id, 'Rejected', reason || 'Items out of stock');
+                                                        }
+                                                    }}
                                                     className="flex-1 py-2 border border-red-500 text-red-500 rounded-xl font-bold hover:bg-red-50 transition-colors"
                                                 >
                                                     Reject
@@ -178,19 +295,25 @@ const VendorDashboard = () => {
                                                 <span className="font-bold text-yellow-600 flex items-center gap-2">
                                                     <Check size={18} /> Food Ready
                                                 </span>
-                                                <span className="text-sm text-gray-400 italic">Waiting for rider...</span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm text-gray-400 italic">Waiting for rider...</span>
+                                                </div>
                                             </div>
                                         ) : order.status === 'OutForDelivery' ? (
                                             <div className="flex items-center justify-between bg-blue-50 p-3 rounded-xl border border-blue-100">
-                                                <span className="font-bold text-blue-600 flex items-center gap-2">
-                                                    🚴 Out For Delivery
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-blue-600 flex items-center gap-2">
+                                                        🚴 Out For Delivery
+                                                    </span>
+                                                </div>
                                             </div>
                                         ) : (
                                             <div className="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                                <span className="font-bold text-gray-500">
-                                                    {order.status}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className="font-bold text-gray-500">
+                                                        {order.status}
+                                                    </span>
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -237,6 +360,7 @@ const VendorDashboard = () => {
                         </div>
                     </div>
                 </div>
+
             </div>
         </MainLayout>
     );

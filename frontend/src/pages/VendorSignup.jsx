@@ -14,11 +14,13 @@ const VendorSignup = () => {
         phone: '',
         restaurantName: '',
         address: '',
+        pincode: '',
         cuisine: '',
         fssai: '',
         role: 'restaurant_partner'
     });
     const [files, setFiles] = useState({
+        restaurantImage: null,
         fssaiCert: null,
         gstCert: null,
         menuCard: null
@@ -33,11 +35,18 @@ const VendorSignup = () => {
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         const name = e.target.name;
-        
+
         if (!file) return;
 
         // Validations
-        if (name === 'fssaiCert') {
+        if (name === 'restaurantImage') {
+            if (!file.type.startsWith('image/')) {
+                return setError('Restaurant image must be an image file.');
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                return setError('Restaurant image must be less than 2 MB.');
+            }
+        } else if (name === 'fssaiCert') {
             if (file.type !== 'image/png') {
                 return setError('FSSAI Certificate must be a PNG image.');
             }
@@ -78,7 +87,7 @@ const VendorSignup = () => {
                 return;
             }
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if(!emailRegex.test(formData.email)) {
+            if (!emailRegex.test(formData.email)) {
                 setError("Please enter a valid email address.");
                 return;
             }
@@ -111,10 +120,14 @@ const VendorSignup = () => {
         submitData.append('phone', countryCode + formData.phone);
         submitData.append('restaurantName', formData.restaurantName);
         submitData.append('address', formData.address);
+        submitData.append('pincode', formData.pincode);
         submitData.append('cuisine', formData.cuisine);
         submitData.append('fssai', formData.fssai);
         submitData.append('role', formData.role);
-        
+        if (files.restaurantImage) {
+            submitData.append('restaurantImage', files.restaurantImage);
+        }
+
         submitData.append('fssaiCert', files.fssaiCert);
         submitData.append('gstCert', files.gstCert);
         submitData.append('menuCard', files.menuCard);
@@ -177,8 +190,8 @@ const VendorSignup = () => {
                                         onChange={handleChange}
                                     />
                                     <div className="flex gap-2">
-                                        <select 
-                                            value={countryCode} 
+                                        <select
+                                            value={countryCode}
                                             onChange={(e) => setCountryCode(e.target.value)}
                                             className="appearance-none rounded-xl block w-24 px-2 py-3 border border-gray-300 focus:ring-primary bg-white text-center"
                                         >
@@ -237,12 +250,21 @@ const VendorSignup = () => {
                                     <textarea
                                         name="address"
                                         required
-                                        rows="3"
+                                        rows="2"
                                         className="appearance-none rounded-xl block w-full px-4 py-3 border border-gray-300 focus:ring-primary focus:border-primary"
                                         placeholder="Full Restaurant Address"
                                         value={formData.address}
                                         onChange={handleChange}
                                     ></textarea>
+                                    <input
+                                        name="pincode"
+                                        type="text"
+                                        required
+                                        className="appearance-none rounded-xl block w-full px-4 py-3 border border-gray-300 focus:ring-primary focus:border-primary"
+                                        placeholder="6-Digit Pincode"
+                                        value={formData.pincode}
+                                        onChange={handleChange}
+                                    />
                                     <div className="grid grid-cols-2 gap-4">
                                         <select
                                             name="cuisine"
@@ -282,7 +304,26 @@ const VendorSignup = () => {
                         {step === 3 && (
                             <div className="space-y-4 animate-fadeIn">
                                 <h3 className="font-bold text-lg text-gray-800">Upload Documents</h3>
-                                <p className="text-xs text-gray-500">Ensure constraints: FSSAI (PNG &lt; 500KB), GST (PDF &lt; 1MB), Menu (PDF &lt; 5MB)</p>
+                                <p className="text-xs text-gray-500">Ensure constraints: Restaurant Image (image &lt; 2MB), FSSAI (PNG &lt; 500KB), GST (PDF &lt; 1MB), Menu (PDF &lt; 5MB)</p>
+                                <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:bg-gray-50 transition-colors relative">
+                                    <input
+                                        type="file"
+                                        name="restaurantImage"
+                                        onChange={handleFileChange}
+                                        className="opacity-0 absolute inset-0 w-full h-full cursor-pointer"
+                                    />
+                                    <div className="flex flex-col items-center gap-2">
+                                        {files.restaurantImage ? (
+                                            <CheckCircle className="text-green-500 w-8 h-8" />
+                                        ) : (
+                                            <Upload className="text-gray-400 w-8 h-8" />
+                                        )}
+                                        <span className="font-medium text-gray-700">Restaurant Image (Optional)</span>
+                                        <span className="text-xs text-gray-500">
+                                            {files.restaurantImage ? files.restaurantImage.name : 'JPG/PNG/WebP'}
+                                        </span>
+                                    </div>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
                                     {['FSSAI Certificate', 'GST Certificate', 'Sample Menu Card'].map((doc, idx) => {
                                         const fieldName = ['fssaiCert', 'gstCert', 'menuCard'][idx];

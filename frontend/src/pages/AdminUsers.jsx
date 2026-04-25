@@ -80,6 +80,52 @@ const AdminUsers = () => {
         u.email?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+    const isImageUrl = (url) => /\.(png|jpe?g|webp|gif|bmp|avif)(\?.*)?$/i.test(url || '');
+
+    const getDeliveryDocuments = (user) => {
+        const documents = user?.deliveryDetails?.documents || user?.documents || user?.deliveryDocuments;
+
+        if (!documents) return [];
+
+        if (Array.isArray(documents)) {
+            return documents
+                .filter(Boolean)
+                .map((document, index) => {
+                    if (typeof document === 'string') {
+                        return {
+                            key: `document-${index}`,
+                            label: `Document ${index + 1}`,
+                            url: document
+                        };
+                    }
+
+                    return {
+                        key: document.key || document.name || `document-${index}`,
+                        label: document.label || document.name || `Document ${index + 1}`,
+                        url: document.url || document.fileUrl || document.file
+                    };
+                });
+        }
+
+        return [
+            {
+                key: 'licenseUrl',
+                label: 'Driving License',
+                url: documents.licenseUrl
+            },
+            {
+                key: 'rcUrl',
+                label: 'RC Book',
+                url: documents.rcUrl
+            },
+            {
+                key: 'aadharUrl',
+                label: 'Aadhar Card',
+                url: documents.aadharUrl
+            }
+        ];
+    };
+
     // Relative base for physical files served by Vite proxy
     const API_BASE = ''; 
 
@@ -310,6 +356,66 @@ const AdminUsers = () => {
                                                     )}
                                                 </div>
                                             )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {selectedUser.deliveryDetails?.vehicleType && (
+                                    <div className="border border-gray-200 rounded-xl overflow-hidden mt-6">
+                                        <div className="bg-gray-50 p-4 border-b border-gray-200">
+                                            <h4 className="font-bold text-gray-800">Delivery Details</h4>
+                                        </div>
+                                        <div className="p-4 space-y-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <p className="text-xs text-gray-500 uppercase">Vehicle Type</p>
+                                                    <p className="font-medium">{selectedUser.deliveryDetails.vehicleType || 'Not specified'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-gray-500 uppercase">Vehicle Number</p>
+                                                    <p className="font-medium">{selectedUser.deliveryDetails.vehicleNumber || 'Not specified'}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-gray-500 uppercase">City</p>
+                                                    <p className="font-medium">{selectedUser.deliveryDetails.city || 'Not specified'}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-4 border-t border-gray-100 pt-4 space-y-3">
+                                                <h5 className="text-sm font-bold text-gray-700">Uploaded Documents</h5>
+
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                    {getDeliveryDocuments(selectedUser).map((document) => (
+                                                        document.url ? (
+                                                            <a
+                                                                key={document.key}
+                                                                href={document.url}
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                                className="block rounded-xl border border-gray-200 overflow-hidden hover:border-primary hover:shadow-sm transition bg-gray-50"
+                                                            >
+                                                                {isImageUrl(document.url) ? (
+                                                                    <div className="aspect-[4/3] bg-gray-100">
+                                                                        <img src={document.url} alt={document.label} className="h-full w-full object-cover" />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="aspect-[4/3] flex items-center justify-center bg-gray-100 text-gray-500 text-sm font-medium px-4 text-center">
+                                                                        Open {document.label}
+                                                                    </div>
+                                                                )}
+                                                                <div className="p-3 flex items-center justify-between">
+                                                                    <span className="text-sm font-medium text-gray-700">{document.label}</span>
+                                                                    <ExternalLink size={14} className="text-primary" />
+                                                                </div>
+                                                            </a>
+                                                        ) : (
+                                                            <div key={document.key} className="rounded-xl border border-dashed border-gray-200 p-4 bg-gray-50 text-sm text-gray-500">
+                                                                {document.label} not uploaded
+                                                            </div>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
