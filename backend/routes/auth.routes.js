@@ -5,7 +5,7 @@ const authMiddleware = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { fileTypeFromBuffer } = require('file-type');
+const FileType = require('file-type');
 
 // Use memory storage for ImageKit uploads
 const storage = multer.memoryStorage();
@@ -26,7 +26,7 @@ const validateFileContent = async (req, res, next) => {
     
     for (const fieldName of Object.keys(req.files)) {
         for (const file of req.files[fieldName]) {
-            const fileType = await fileTypeFromBuffer(file.buffer);
+            const fileType = await FileType(file.buffer);
             if (!fileType || !allowedMimeTypes.includes(fileType.mime)) {
                 return res.status(400).json({ 
                     message: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' 
