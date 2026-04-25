@@ -5,8 +5,7 @@ const { Server } = require('socket.io');
 const rateLimit = require('express-rate-limit');
 const errorHandler = require('./middleware/errorMiddleware');
 
-// Force Google DNS to bypass ISP SRV resolution blocks
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// dns.setServers(['8.8.8.8', '8.8.4.4']);
 const mongoose = require('mongoose');
 const cors = require('cors');
 const path = require('path');
