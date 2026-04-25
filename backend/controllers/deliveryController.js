@@ -121,12 +121,15 @@ exports.updateOrderStatus = async (req, res) => {
             const loyaltyController = require('./loyaltyController');
             await loyaltyController.creditPointsForOrder(order._id);
 
-            // Credit dynamic delivery earnings to partner
-            const deliveryEarning = order.deliveryEarning || 30;
+            // Credit dynamic delivery earnings + customer tips to partner
+            const baseEarning = order.deliveryEarning || 30;
+            const tip = order.tipAmount || 0;
+            const totalRiderEarning = baseEarning + tip;
+
             await User.findByIdAndUpdate(req.user.id, {
                 $inc: {
-                    walletBalance: deliveryEarning,
-                    totalEarnings: deliveryEarning
+                    walletBalance: totalRiderEarning,
+                    totalEarnings: totalRiderEarning
                 }
             });
         }
@@ -170,12 +173,12 @@ exports.getHistoryAndEarnings = async (req, res) => {
             status: 'Delivered'
         }).populate('restaurant', 'name image').populate('user', 'name').sort({ updatedAt: -1 });
 
-        // Calculate today's earnings dynamically
+        // Calculate today's earnings dynamically (Base + Tips)
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayOrders = orders.filter(o => new Date(o.updatedAt) >= todayStart);
-        const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryEarning || 0), 0);
-        const totalEarningsCalc = orders.reduce((sum, o) => sum + (o.deliveryEarning || 0), 0);
+        const todayEarnings = todayOrders.reduce((sum, o) => sum + (o.deliveryEarning || 0) + (o.tipAmount || 0), 0);
+        const totalEarningsCalc = orders.reduce((sum, o) => sum + (o.deliveryEarning || 0) + (o.tipAmount || 0), 0);
 
         // Calculate average earning per delivery
         const avgEarning = orders.length > 0 ? Math.round(totalEarningsCalc / orders.length) : 0;

@@ -174,30 +174,22 @@ const DeliveryDashboard = () => {
         if (!socket) return;
 
         const handleReceiveMessage = (message) => {
-            console.log('Delivery Partner received socket message:', message);
-            const msgOrderId = (message?.order?._id || message?.order)?.toString();
-            const currentOrderId = chatOrderIdRef.current?.toString();
+            console.log('Chat message received by Rider:', message);
+            const msgOrderId = (message.order?._id || message.order || '').toString();
+            const currentOrderId = (chatOrderIdRef.current || '').toString();
             
-            console.log(`Checking match: Msg OrderID ${msgOrderId} vs Current OrderID ${currentOrderId}`);
-            
-            if (!currentOrderId || msgOrderId !== currentOrderId) {
-                console.log('Order ID mismatch, ignoring message');
-                return;
+            if (msgOrderId && currentOrderId && msgOrderId === currentOrderId) {
+                setChatMessages((prev) => {
+                    const isDuplicate = prev.some(m => m._id === message._id);
+                    if (isDuplicate) return prev;
+                    
+                    if (!isChatOpenRef.current && message.senderRole !== 'delivery_partner') {
+                        setUnreadCount(c => c + 1);
+                    }
+                    return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
             }
-
-            setChatMessages((prev) => {
-                if (prev.find(m => m._id?.toString() === message._id?.toString())) {
-                    console.log('Duplicate message ignored');
-                    return prev;
-                }
-                if (!isChatOpenRef.current && message.senderRole !== 'delivery_partner') {
-                    setUnreadCount(c => c + 1);
-                }
-                const newMessages = [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                console.log('Updated messages state:', newMessages.length);
-                return newMessages;
-            });
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         };
 
         socket.on('receive_message', handleReceiveMessage);

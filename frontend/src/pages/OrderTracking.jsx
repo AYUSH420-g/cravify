@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import Button from '../components/Button';
-import { Phone, MessageSquare, MapPin, CheckCircle, Package, Loader2, MessageCircle, Send } from 'lucide-react';
+import { Phone, MessageSquare, MapPin, CheckCircle, Package, Loader2, MessageCircle, Send, Sparkles, Leaf } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useNavigate } from 'react-router-dom';
@@ -47,30 +47,22 @@ const OrderTracking = () => {
         if (!socket) return;
 
         const handleReceiveMessage = (message) => {
-            console.log('Customer received socket message:', message);
-            const msgOrderId = (message?.order?._id || message?.order)?.toString();
-            const currentOrderId = orderIdRef.current?.toString();
+            console.log('Chat message received:', message);
+            const msgOrderId = (message.order?._id || message.order || '').toString();
+            const currentOrderId = (orderIdRef.current || '').toString();
             
-            console.log(`Checking match: Msg OrderID ${msgOrderId} vs Current OrderID ${currentOrderId}`);
-            
-            if (!currentOrderId || msgOrderId !== currentOrderId) {
-                console.log('Order ID mismatch, ignoring message');
-                return;
+            if (msgOrderId && currentOrderId && msgOrderId === currentOrderId) {
+                setMessages((prev) => {
+                    const isDuplicate = prev.some(m => m._id === message._id);
+                    if (isDuplicate) return prev;
+                    
+                    if (!isChatOpenRef.current && message.senderRole !== 'customer') {
+                        setUnreadCount(c => c + 1);
+                    }
+                    return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
             }
-
-            setMessages((prev) => {
-                if (prev.find(m => m._id?.toString() === message._id?.toString())) {
-                    console.log('Duplicate message ignored');
-                    return prev;
-                }
-                if (!isChatOpenRef.current && message.senderRole !== 'customer') {
-                    setUnreadCount(c => c + 1);
-                }
-                const newMessages = [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                console.log('Updated messages state:', newMessages.length);
-                return newMessages;
-            });
-            setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         };
 
         const handleLocationUpdate = (data) => {
@@ -354,7 +346,14 @@ const OrderTracking = () => {
                                             {order.deliveryPartner.name?.charAt(0) || 'DP'}
                                         </div>
                                         <div>
-                                            <h4 className="font-bold text-lg">{order.deliveryPartner.name}</h4>
+                                            <h4 className="font-bold text-lg flex items-center gap-2">
+                                                {order.deliveryPartner.name}
+                                                {['Bicycle', 'EV', 'Electric Scooter'].includes(order.deliveryPartner.deliveryDetails?.vehicleType) && (
+                                                    <span className="bg-green-100 text-green-700 text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 font-bold animate-bounce">
+                                                        <Sparkles size={10} /> ECO-DELIVERY
+                                                    </span>
+                                                )}
+                                            </h4>
                                             <div className="flex items-center gap-2">
                                                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                                                 <span className="text-gray-500 text-xs">On the way to you</span>
