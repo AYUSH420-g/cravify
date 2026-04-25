@@ -1,5 +1,4 @@
 <div align="center">
-  <img src="https://via.placeholder.com/150x150?text=Cravify+Logo" alt="Cravify Logo" width="120" height="120" />
   <h1>🍔 Cravify</h1>
   <p><em>A Production-Ready, Event-Driven Food Delivery Platform</em></p>
 
