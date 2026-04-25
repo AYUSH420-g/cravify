@@ -189,7 +189,6 @@ io.on('connection', (socket) => {
 
 // Database Connection
 const clientOptions = {
-    serverApi: { version: '1', strict: true, deprecationErrors: true },
     serverSelectionTimeoutMS: 30000,
     connectTimeoutMS: 30000
 };
