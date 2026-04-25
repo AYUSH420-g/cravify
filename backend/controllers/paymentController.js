@@ -156,18 +156,23 @@ exports.verifyPayment = async (req, res) => {
         }, { new: true });
 
         // Now place the actual order
-        const { restaurantId, items, deliveryAddress, deliveryLocation, paymentMethod, loyaltyPointsUsed } = orderData;
+        const { 
+            restaurantId, 
+            items, 
+            deliveryAddress, 
+            deliveryLocation, 
+            paymentMethod, 
+            loyaltyPointsUsed,
+            noCutlery,
+            tipAmount
+        } = orderData;
 
-        const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-        const deliveryFee = 40;
-        const platformFee = 5;
-        const gst = Math.round(totalAmount * 0.05);
-        const grossTotal = totalAmount + deliveryFee + platformFee + gst;
-        const loyaltyDiscount = payment.loyaltyDiscount || 0;
-        const finalTotal = Math.max(1, grossTotal - loyaltyDiscount);
+        const itemTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        // We'll use the final amount from the payment record to ensure consistency
+        const finalTotal = payment.amount / 100; // back to rupees
 
         // Calculate loyalty points to earn (1 per ₹10 spent on food)
-        const pointsEarned = Math.floor(totalAmount / 10);
+        const pointsEarned = Math.floor(itemTotal / 10);
 
         const order = new Order({
             user: req.user.id,
@@ -182,9 +187,16 @@ exports.verifyPayment = async (req, res) => {
             paymentStatus: 'Paid',
             payment: payment._id,
             loyaltyPointsUsed: loyaltyPointsUsed || 0,
-            loyaltyPointsEarned: pointsEarned
+            loyaltyPointsEarned: pointsEarned,
+            noCutlery: !!noCutlery,
+            tipAmount: Number(tipAmount) || 0
         });
         await order.save();
+
+        // If noCutlery, increment user's plasticItemsSaved
+        if (noCutlery) {
+            await User.findByIdAndUpdate(req.user.id, { $inc: { plasticItemsSaved: 3 } });
+        }
 
         // Link payment to order
         payment.order = order._id;
@@ -229,6 +241,100 @@ exports.verifyPayment = async (req, res) => {
     }
 };
 
+const WalletTransaction = require('../models/WalletTransaction');
+
+// ... existing code ...
+
+// Create Razorpay order for Wallet Top-up
+exports.createWalletTopUp = async (req, res) => {
+    try {
+        const { amount } = req.body;
+        if (!amount || amount <= 0) return res.status(400).json({ message: 'Invalid amount' });
+
+        // Create Razorpay order
+        const options = {
+            amount: Math.round(amount * 100), // in paise
+            currency: 'INR',
+            receipt: `wallet_${Date.now()}`,
+            notes: { userId: req.user.id, type: 'wallet_topup' }
+        };
+
+        let razorpayOrder;
+        if (process.env.MOCK_PAYMENT === 'true') {
+            razorpayOrder = { id: `mock_wallet_${Date.now()}`, amount: options.amount, currency: 'INR' };
+        } else {
+            razorpayOrder = await razorpay.orders.create(options);
+        }
+
+        // Create payment record
+        const payment = new Payment({
+            user: req.user.id,
+            amount: options.amount,
+            razorpayOrderId: razorpayOrder.id,
+            status: 'Created',
+            description: 'Wallet Top-up'
+        });
+        await payment.save();
+
+        res.json({
+            orderId: razorpayOrder.id,
+            amount: razorpayOrder.amount,
+            currency: razorpayOrder.currency,
+            paymentId: payment._id,
+            key: process.env.RAZORPAY_KEY_ID || 'mock_key'
+        });
+    } catch (err) {
+        console.error('Wallet Top-up creation failed:', err);
+        res.status(500).json({ message: 'Failed to initiate top-up' });
+    }
+};
+
+// Verify Wallet Top-up payment
+exports.verifyWalletTopUp = async (req, res) => {
+    try {
+        const { razorpay_order_id, razorpay_payment_id, razorpay_signature, paymentId } = req.body;
+
+        if (process.env.MOCK_PAYMENT !== 'true') {
+            const body = razorpay_order_id + '|' + razorpay_payment_id;
+            const expectedSignature = crypto
+                .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+                .update(body)
+                .digest('hex');
+
+            if (expectedSignature !== razorpay_signature) {
+                await Payment.findByIdAndUpdate(paymentId, { status: 'Failed' });
+                return res.status(400).json({ message: 'Verification failed' });
+            }
+        }
+
+        // Update payment record
+        await Payment.findByIdAndUpdate(paymentId, {
+            razorpayPaymentId: razorpay_payment_id,
+            razorpaySignature: razorpay_signature,
+            status: 'Paid'
+        });
+
+        // Credit the wallet
+        const amountInRupees = (await Payment.findById(paymentId)).amount / 100;
+        const user = await User.findById(req.user.id);
+        user.walletBalance = (user.walletBalance || 0) + amountInRupees;
+        await user.save();
+
+        // Log transaction
+        await WalletTransaction.create({
+            user: req.user.id,
+            type: 'credit',
+            amount: amountInRupees,
+            description: 'Wallet Top-up via Razorpay',
+            balanceAfter: user.walletBalance
+        });
+
+        res.json({ success: true, message: `₹${amountInRupees} added to wallet!`, newBalance: user.walletBalance });
+    } catch (err) {
+        console.error('Wallet Top-up verification failed:', err);
+        res.status(500).json({ message: 'Verification failed' });
+    }
+};
 // Get payment history for a user
 exports.getPaymentHistory = async (req, res) => {
     try {

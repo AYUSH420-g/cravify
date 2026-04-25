@@ -71,7 +71,12 @@ const DeliveryHistory = () => {
                                                 </span>
                                             </td>
                                             <td className="p-4 text-right font-bold text-dark">
-                                                ₹40.00
+                                                <div className="flex flex-col items-end">
+                                                    <span>₹{(order.deliveryEarning || 0) + (order.tipAmount || 0)}</span>
+                                                    {order.tipAmount > 0 && (
+                                                        <span className="text-[10px] text-green-600 font-bold">Incl. ₹{order.tipAmount} Tip</span>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}

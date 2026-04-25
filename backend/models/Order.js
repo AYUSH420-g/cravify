@@ -40,7 +40,7 @@ const OrderSchema = new mongoose.Schema({
         lat: { type: Number },
         lng: { type: Number }
     },
-    paymentMethod: { type: String, enum: ['Card', 'UPI', 'COD', 'Razorpay'], default: 'COD' },
+    paymentMethod: { type: String, enum: ['Card', 'UPI', 'COD', 'Razorpay', 'Wallet'], default: 'COD' },
     paymentStatus: { 
         type: String, 
         enum: ['Pending', 'Paid', 'Failed', 'COD'], 
@@ -50,6 +50,9 @@ const OrderSchema = new mongoose.Schema({
     loyaltyPointsUsed: { type: Number, default: 0 },
     loyaltyPointsEarned: { type: Number, default: 0 },
     deliveryEarning: { type: Number, default: 0 },
+    // ESG & Finance
+    noCutlery: { type: Boolean, default: false },
+    tipAmount: { type: Number, default: 0 },
     restaurantRating: { type: Number, min: 1, max: 5 },
     deliveryRating: { type: Number, min: 1, max: 5 },
     ratingComment: { type: String },
