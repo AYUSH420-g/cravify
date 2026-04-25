@@ -103,7 +103,7 @@ io.on('connection', (socket) => {
         const room = `order_${orderId.toString()}`;
         socket.join(room);
         console.log(`Socket ${socket.id} JOINED tracking room: ${room}`);
-        
+
         // Confirmation back to client
         socket.emit('joined_room', { room });
     });
@@ -189,6 +189,7 @@ io.on('connection', (socket) => {
 
 // Database Connection
 const clientOptions = {
+    serverApi: { version: '1', strict: true, deprecationErrors: true },
     serverSelectionTimeoutMS: 30000,
     connectTimeoutMS: 30000
 };
