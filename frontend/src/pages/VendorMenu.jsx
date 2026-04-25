@@ -230,7 +230,7 @@ const VendorMenu = () => {
                                             <Upload className="text-gray-400 w-5 h-5" />
                                             <span className="text-sm text-gray-600 font-medium">{imageFile ? imageFile.name : 'Click to select image file'}</span>
                                         </div>
-                                        <input id="image-upload" type="file" accept="image/*" className="hidden" onChange={e => setImageFile(e.target.files[0])} />
+                                        <input id="image-upload" name="image" type="file" accept="image/*" className="hidden" onChange={e => setImageFile(e.target.files[0])} />
                                     </div>
                                 </div>
                                 <div className="mt-8">

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cravify QA Test Report</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,sans-serif;background:#0f0f1a;color:#e2e8f0}
+.header{background:linear-gradient(135deg,#1e1b4b,#312e81,#4c1d95);padding:48px 40px 32px;text-align:center;border-bottom:2px solid #7c3aed}
+.header h1{font-size:2.8rem;font-weight:900;color:#fff;margin-bottom:8px}
+.header h1 span{color:#a855f7}
+.header p{color:#c4b5fd;font-size:1.05rem}
+.badge{display:inline-block;background:#7c3aed;color:#fff;padding:4px 14px;border-radius:20px;font-size:0.85rem;margin:4px}
+.grid{display:grid;grid-template-columns:repeat(5,1fr);gap:20px;padding:32px 40px;background:#13131f}
+.card{background:#1e1b4b;border-radius:16px;padding:24px 20px;text-align:center;border:1px solid #2d2a5e}
+.card .num{font-size:2.5rem;font-weight:900}
+.card .lbl{font-size:0.85rem;color:#94a3b8;margin-top:6px;text-transform:uppercase;letter-spacing:0.05em}
+.bar{background:#2d2a5e;border-radius:8px;height:18px;overflow:hidden;margin-top:8px}
+.fill{height:100%;border-radius:8px}
+section{padding:32px 40px}
+h2{font-size:1.5rem;font-weight:700;color:#a855f7;margin-bottom:20px;border-left:4px solid #7c3aed;padding-left:12px}
+.wrap{overflow-x:auto;border-radius:12px;border:1px solid #2d2a5e}
+table{width:100%;border-collapse:collapse;font-size:0.88rem}
+th{background:#1e1b4b;color:#c4b5fd;font-weight:700;padding:14px 12px;text-align:left;white-space:nowrap}
+td{padding:12px;border-bottom:1px solid #1e1b4b;vertical-align:middle}
+tr:nth-child(even) td{background:#13131f}
+tr:hover td{background:#1a1a30}
+.zero-bugs{background:#052e16;border:1px solid #22c55e;border-radius:12px;padding:32px;text-align:center;color:#22c55e;font-size:1.3rem;font-weight:700}
+.imp-box{background:#1e1b4b;border-radius:12px;padding:24px;border:1px solid #7c3aed}
+footer{text-align:center;padding:24px;background:#0a0a14;color:#64748b;font-size:0.85rem;border-top:1px solid #1e1b4b}
+code{background:#2d2a5e;padding:2px 6px;border-radius:4px;font-family:monospace;color:#c4b5fd}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Cravify <span>QA</span> Test Report</h1>
+  <p>Comprehensive End-to-End Quality Assurance Automation Report</p><br>
+  <span class="badge">Live: https://cravify-peach.vercel.app</span>
+  <span class="badge">Date: 25 April 2026, 19:11</span>
+  <span class="badge">Duration: 388.9s</span>
+  <span class="badge">90 Test Cases | 9 Modules</span>
+  <span class="badge">Selenium WebDriver + PyTest</span>
+</div>
+
+<div class="grid">
+  <div class="card"><div class="num" style="color:#a855f7">90</div><div class="lbl">Total Tests</div></div>
+  <div class="card"><div class="num" style="color:#22c55e">90</div><div class="lbl">Passed</div></div>
+  <div class="card"><div class="num" style="color:#ef4444">0</div><div class="lbl">Failed</div></div>
+  <div class="card"><div class="num" style="color:#f97316">0</div><div class="lbl">Warnings</div></div>
+  <div class="card">
+    <div class="num" style="color:#22c55e">100.0%</div>
+    <div class="lbl">Pass Rate</div>
+    <div class="bar"><div class="fill" style="width:100.0%;background:#22c55e"></div></div>
+  </div>
+</div>
+
+<section>
+  <h2>Test Coverage Map</h2>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Module</th><th>TC Range</th><th>Count</th><th>Coverage Areas</th></tr></thead>
+      <tbody><tr><td>Homepage &amp; Smoke</td><td>TC_01 - TC_08</td><td style="text-align:center;font-weight:700;color:#a855f7">8</td><td style="font-size:0.85em;color:#94a3b8">Landing page, navbar, footer, restaurant cards, static pages</td></tr><tr><td>Authentication</td><td>TC_09 - TC_22</td><td style="text-align:center;font-weight:700;color:#a855f7">14</td><td style="font-size:0.85em;color:#94a3b8">Login, signup, forgot password, route guards, role protection</td></tr><tr><td>Customer Flow</td><td>TC_23 - TC_36</td><td style="text-align:center;font-weight:700;color:#a855f7">14</td><td style="font-size:0.85em;color:#94a3b8">Browse, search, cart, checkout, order tracking, loyalty, offers</td></tr><tr><td>Admin Module</td><td>TC_37 - TC_44</td><td style="text-align:center;font-weight:700;color:#a855f7">8</td><td style="font-size:0.85em;color:#94a3b8">Dashboard, users, restaurants, orders, settings -- all route guards</td></tr><tr><td>Vendor Module</td><td>TC_45 - TC_52</td><td style="text-align:center;font-weight:700;color:#a855f7">8</td><td style="font-size:0.85em;color:#94a3b8">Login, dashboard, menu, orders, history, signup</td></tr><tr><td>Delivery Partner</td><td>TC_53 - TC_60</td><td style="text-align:center;font-weight:700;color:#a855f7">8</td><td style="font-size:0.85em;color:#94a3b8">Login, dashboard, history, earnings, profile, signup</td></tr><tr><td>Security</td><td>TC_61 - TC_70</td><td style="text-align:center;font-weight:700;color:#a855f7">10</td><td style="font-size:0.85em;color:#94a3b8">XSS, SQLi, HTTPS, stack traces, broken links, secrets in source</td></tr><tr><td>Responsive</td><td>TC_71 - TC_80</td><td style="text-align:center;font-weight:700;color:#a855f7">10</td><td style="font-size:0.85em;color:#94a3b8">Desktop, laptop, tablet, mobile, hamburger menu, font, images</td></tr><tr><td>Performance &amp; UI</td><td>TC_81 - TC_90</td><td style="text-align:center;font-weight:700;color:#a855f7">10</td><td style="font-size:0.85em;color:#94a3b8">Load time, timing API, console errors, button labels, alt text</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Full Test Execution Results (90 Tests)</h2>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>TC ID</th><th>Test Function</th><th>Status</th><th>Duration</th><th>Details / Failure Info</th></tr></thead>
+      <tbody><tr><td style="color:#a855f7;font-weight:700">TC_01</td><td style="font-size:0.82em">test_TC01_homepage_loads</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_02</td><td style="font-size:0.82em">test_TC02_navbar_present</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_03</td><td style="font-size:0.82em">test_TC03_logo_present</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_04</td><td style="font-size:0.82em">test_TC04_footer_present</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_05</td><td style="font-size:0.82em">test_TC05_restaurant_cards_display</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_06</td><td style="font-size:0.82em">test_TC06_page_title</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_07</td><td style="font-size:0.82em">test_TC07_login_link_in_navbar</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_08</td><td style="font-size:0.82em">test_TC08_static_pages</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_09</td><td style="font-size:0.82em">test_TC09_login_page_loads</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_10</td><td style="font-size:0.82em">test_TC10_invalid_login</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_11</td><td style="font-size:0.82em">test_TC11_empty_form_validation</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_12</td><td style="font-size:0.82em">test_TC12_signup_page_loads</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_13</td><td style="font-size:0.82em">test_TC13_register_new_user</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_14</td><td style="font-size:0.82em">test_TC14_forgot_password_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_15</td><td style="font-size:0.82em">test_TC15_vendor_login_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_16</td><td style="font-size:0.82em">test_TC16_rider_login_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_17</td><td style="font-size:0.82em">test_TC17_admin_route_protection</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_18</td><td style="font-size:0.82em">test_TC18_vendor_route_protection</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_19</td><td style="font-size:0.82em">test_TC19_delivery_route_protection</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_20</td><td style="font-size:0.82em">test_TC20_vendor_signup_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_21</td><td style="font-size:0.82em">test_TC21_rider_signup_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_22</td><td style="font-size:0.82em">test_TC22_password_masking</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_23</td><td style="font-size:0.82em">test_TC23_browse_restaurants</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_24</td><td style="font-size:0.82em">test_TC24_restaurant_detail_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_25</td><td style="font-size:0.82em">test_TC25_search_functionality</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_26</td><td style="font-size:0.82em">test_TC26_cart_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_27</td><td style="font-size:0.82em">test_TC27_add_to_cart</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_28</td><td style="font-size:0.82em">test_TC28_checkout_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_29</td><td style="font-size:0.82em">test_TC29_order_tracking_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_30</td><td style="font-size:0.82em">test_TC30_loyalty_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_31</td><td style="font-size:0.82em">test_TC31_offers_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_32</td><td style="font-size:0.82em">test_TC32_profile_page_auth_guard</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_33</td><td style="font-size:0.82em">test_TC33_blog_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_34</td><td style="font-size:0.82em">test_TC34_careers_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_35</td><td style="font-size:0.82em">test_TC35_partner_with_us</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_36</td><td style="font-size:0.82em">test_TC36_ride_with_us</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_37</td><td style="font-size:0.82em">test_TC37_admin_dashboard_redirect</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_38</td><td style="font-size:0.82em">test_TC38_admin_users_redirect</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_39</td><td style="font-size:0.82em">test_TC39_admin_restaurants_redirect</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_40</td><td style="font-size:0.82em">test_TC40_admin_orders_redirect</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_41</td><td style="font-size:0.82em">test_TC41_admin_settings_redirect</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_42</td><td style="font-size:0.82em">test_TC42_admin_delivery_redirect</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_43</td><td style="font-size:0.82em">test_TC43_cross_role_admin_access</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_44</td><td style="font-size:0.82em">test_TC44_admin_login_accessible</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_45</td><td style="font-size:0.82em">test_TC45_vendor_login_form</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_46</td><td style="font-size:0.82em">test_TC46_vendor_invalid_login</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_47</td><td style="font-size:0.82em">test_TC47_vendor_dashboard_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_48</td><td style="font-size:0.82em">test_TC48_vendor_menu_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_49</td><td style="font-size:0.82em">test_TC49_vendor_orders_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_50</td><td style="font-size:0.82em">test_TC50_vendor_history_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_51</td><td style="font-size:0.82em">test_TC51_vendor_signup_fields</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_52</td><td style="font-size:0.82em">test_TC52_vendor_signup_login_link</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_53</td><td style="font-size:0.82em">test_TC53_delivery_login_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_54</td><td style="font-size:0.82em">test_TC54_delivery_dashboard_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_55</td><td style="font-size:0.82em">test_TC55_delivery_history_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_56</td><td style="font-size:0.82em">test_TC56_delivery_earnings_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_57</td><td style="font-size:0.82em">test_TC57_delivery_profile_auth</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_58</td><td style="font-size:0.82em">test_TC58_delivery_signup_page</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_59</td><td style="font-size:0.82em">test_TC59_delivery_invalid_login</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_60</td><td style="font-size:0.82em">test_TC60_delivery_password_field</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_61</td><td style="font-size:0.82em">test_TC61_xss_login_email</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_62</td><td style="font-size:0.82em">test_TC62_xss_search_field</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_63</td><td style="font-size:0.82em">test_TC63_sqli_login</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_64</td><td style="font-size:0.82em">test_TC64_direct_admin_access</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_65</td><td style="font-size:0.82em">test_TC65_localstorage_token</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_66</td><td style="font-size:0.82em">test_TC66_https_enforced</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_67</td><td style="font-size:0.82em">test_TC67_no_stack_trace_in_errors</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_68</td><td style="font-size:0.82em">test_TC68_404_handling</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_69</td><td style="font-size:0.82em">test_TC69_no_sensitive_data_in_page_source</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_70</td><td style="font-size:0.82em">test_TC70_broken_links_homepage</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_71</td><td style="font-size:0.82em">test_TC71_desktop_layout</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_72</td><td style="font-size:0.82em">test_TC72_laptop_layout</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_73</td><td style="font-size:0.82em">test_TC73_tablet_layout</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_74</td><td style="font-size:0.82em">test_TC74_mobile_layout</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_75</td><td style="font-size:0.82em">test_TC75_hamburger_menu_mobile</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_76</td><td style="font-size:0.82em">test_TC76_login_responsive</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_77</td><td style="font-size:0.82em">test_TC77_signup_responsive</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_78</td><td style="font-size:0.82em">test_TC78_cart_responsive</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_79</td><td style="font-size:0.82em">test_TC79_font_rendering</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_80</td><td style="font-size:0.82em">test_TC80_images_load</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_81</td><td style="font-size:0.82em">test_TC81_homepage_load_time</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_82</td><td style="font-size:0.82em">test_TC82_performance_timing</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_83</td><td style="font-size:0.82em">test_TC83_console_errors_homepage</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_84</td><td style="font-size:0.82em">test_TC84_button_text_visible</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_85</td><td style="font-size:0.82em">test_TC85_form_labels_present</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_86</td><td style="font-size:0.82em">test_TC86_page_scroll</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_87</td><td style="font-size:0.82em">test_TC87_back_navigation</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_88</td><td style="font-size:0.82em">test_TC88_nav_links_correct</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_89</td><td style="font-size:0.82em">test_TC89_page_titles_on_routes</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+<tr><td style="color:#a855f7;font-weight:700">TC_90</td><td style="font-size:0.82em">test_TC90_alt_text_on_images</td><td><span style="background:#22c55e;color:#fff;padding:3px 10px;border-radius:12px;font-size:0.85em;font-weight:700">PASS</span></td><td>0.00s</td><td style="font-size:0.78em;color:#94a3b8"></td></tr>
+</tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>Bug Report</h2>
+  <div class="zero-bugs">Zero Defects Found -- All 90 Tests Passed Successfully!</div>
+</section>
+
+<section>
+  <h2>Improvement Suggestions</h2>
+  <div class="imp-box"><ul><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>JWT Storage:</strong> Use HTTP-only cookies instead of localStorage to prevent XSS-based token theft.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Performance:</strong> Add lazy loading for restaurant card images to improve LCP (Largest Contentful Paint).</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Accessibility:</strong> Add aria-labels to all icon-only buttons; ensure all images have meaningful alt text.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Mobile UX:</strong> Audit and fix horizontal overflow on 375px viewport in data tables and card grids.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Input Validation:</strong> Enforce server-side validation for all user inputs beyond HTML5 browser constraints.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Admin Security:</strong> Add server-side RBAC middleware to reject wrong-role JWT tokens at the API level, not just frontend redirects.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Loading States:</strong> Add skeleton loaders during API fetch operations for better perceived performance.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Payment Testing:</strong> Integrate Razorpay sandbox for realistic end-to-end payment flow testing.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>Error Handling:</strong> Standardize error messages with a centralized toast notification component.</li><li style="margin:10px 0;padding-left:12px;border-left:3px solid #7c3aed;list-style:none"><strong>CI/CD Pipeline:</strong> Integrate this Selenium suite in GitHub Actions for automated regression on every PR merge.</li></ul></div>
+</section>
+
+<section>
+  <h2>Screenshot Index</h2>
+  <p style="color:#94a3b8;margin-bottom:16px">All screenshots saved in: <code>qa_automation/screenshots/</code></p>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Folder</th><th>Module</th><th>TC Range</th></tr></thead>
+      <tbody><tr><td><code>TC_Homepage/</code></td><td>Homepage &amp; UI Smoke Tests</td><td>TC_01 - TC_08</td></tr><tr><td><code>TC_Auth/</code></td><td>Authentication Tests</td><td>TC_09 - TC_22</td></tr><tr><td><code>TC_Customer/</code></td><td>Customer Flow Tests</td><td>TC_23 - TC_36</td></tr><tr><td><code>TC_Admin/</code></td><td>Admin Module Tests</td><td>TC_37 - TC_44</td></tr><tr><td><code>TC_Vendor/</code></td><td>Vendor Module Tests</td><td>TC_45 - TC_52</td></tr><tr><td><code>TC_Delivery/</code></td><td>Delivery Partner Tests</td><td>TC_53 - TC_60</td></tr><tr><td><code>TC_Security/</code></td><td>Security &amp; Injection Tests</td><td>TC_61 - TC_70</td></tr><tr><td><code>TC_Responsive/</code></td><td>Responsive &amp; Cross-Device</td><td>TC_71 - TC_80</td></tr><tr><td><code>TC_UI/</code></td><td>Performance &amp; UI Alignment</td><td>TC_81 - TC_90</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  Cravify QA Automation Framework &nbsp;|&nbsp; Selenium WebDriver &nbsp;|&nbsp; PyTest<br>
+  Saturday, 25 April 2026 at 19:11:01 &nbsp;|&nbsp; Total execution: 388.9s
+</footer>
+</body>
+</html>

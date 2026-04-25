@@ -5,7 +5,7 @@ const authMiddleware = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { fileTypeFromBuffer } = require('file-type');
+const FileType = require('file-type');
 
 // Use memory storage for ImageKit uploads
 const storage = multer.memoryStorage();
@@ -24,17 +24,22 @@ const fileFilter = (req, file, cb) => {
 const validateFileContent = async (req, res, next) => {
     if (!req.files) return next();
     
-    for (const fieldName of Object.keys(req.files)) {
-        for (const file of req.files[fieldName]) {
-            const fileType = await fileTypeFromBuffer(file.buffer);
-            if (!fileType || !allowedMimeTypes.includes(fileType.mime)) {
-                return res.status(400).json({ 
-                    message: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' 
-                });
+    try {
+        for (const fieldName of Object.keys(req.files)) {
+            for (const file of req.files[fieldName]) {
+                const type = await FileType.fromBuffer(file.buffer);
+                if (!type || !allowedMimeTypes.includes(type.mime)) {
+                    return res.status(400).json({ 
+                        message: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' 
+                    });
+                }
             }
         }
+        next();
+    } catch (error) {
+        console.error("File validation error:", error);
+        return res.status(500).json({ message: "Server error during file validation" });
     }
-    next();
 };
 
 const upload = multer({
