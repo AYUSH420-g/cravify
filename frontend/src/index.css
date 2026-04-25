@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-@theme {
+:root {
   --color-primary: #E23744;
   --color-secondary: #FC8019;
   --color-background: #FFFFFF;
@@ -10,6 +10,37 @@
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-error: #EF4444;
+  --color-card: #FFFFFF;
+  --color-border: #F3F4F6;
+  --color-text-main: #1C1C1C;
+  --color-text-dim: #6B7280;
+}
+
+html.dark {
+  --color-background: #0F172A;
+  --color-section: #1E293B;
+  --color-dark: #F8FAFC;
+  --color-card: #1E293B;
+  --color-border: #334155;
+  --color-text-main: #F8FAFC;
+  --color-text-dim: #94A3B8;
+  --color-muted: #94A3B8;
+}
+
+@theme {
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-background: var(--color-background);
+  --color-section: var(--color-section);
+  --color-dark: var(--color-dark);
+  --color-muted: var(--color-muted);
+  --color-success: #22C55E;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+  --color-card: var(--color-card);
+  --color-border: var(--color-border);
+  --color-text-main: var(--color-text-main);
+  --color-text-dim: var(--color-text-dim);
 
   --radius-xl: 1rem;
 }
@@ -17,8 +48,51 @@
 @layer base {
   body {
     background-color: var(--color-background);
-    color: var(--color-dark);
+    color: var(--color-text-main);
     font-family: var(--font-sans), system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
+}
+
+.bg-white {
+    background-color: var(--color-card) !important;
+}
+
+.text-dark {
+    color: var(--color-text-main) !important;
+}
+
+/* Comprehensive Gray Overrides for Dark Mode */
+.text-gray-900, .text-gray-800, .text-gray-700 {
+    color: var(--color-text-main) !important;
+}
+
+.text-gray-600, .text-gray-500, .text-gray-400 {
+    color: var(--color-text-dim) !important;
+}
+
+.border-gray-100, .border-gray-200, .border-gray-300 {
+    border-color: var(--color-border) !important;
+}
+
+.bg-gray-50, .bg-gray-100, .bg-gray-200 {
+    background-color: var(--color-section) !important;
+}
+
+/* Fix for Inputs in Dark Mode */
+input, select, textarea {
+    background-color: var(--color-section) !important;
+    color: var(--color-text-main) !important;
+    border-color: var(--color-border) !important;
+}
+
+input::placeholder {
+    color: var(--color-text-dim) !important;
+}
+
+/* Specifically for Login/Signup cards */
+.max-w-md.bg-white {
+    background-color: var(--color-card) !important;
+    border-color: var(--color-border) !important;
 }
