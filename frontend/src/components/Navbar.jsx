@@ -14,7 +14,8 @@ const Navbar = () => {
 
     const handleNavSearch = (e) => {
         if (e.key === 'Enter' && navSearch.trim()) {
-            navigate(`/search?q=${encodeURIComponent(navSearch.trim())}`);
+            const sanitizedQuery = navSearch.trim().replace(/\.+$/, '');
+            navigate(`/search?q=${encodeURIComponent(sanitizedQuery)}`);
             setNavSearch('');
             setIsMobileMenuOpen(false);
         }

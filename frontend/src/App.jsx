@@ -46,8 +46,13 @@ import DeliveryEarnings from './pages/DeliveryEarnings';
 import DeliveryProfile from './pages/DeliveryProfile';
 import LoyaltyPage from './pages/LoyaltyPage';
 
+import { SettingsProvider } from './context/SettingsContext';
+import { GlobalBroadcastBanner, MaintenanceOverlay } from './components/SystemAlerts';
 import LiveOrderPopup from './components/LiveOrderPopup';
-import { useAuth } from './context/AuthContext';
+import { useAuth, AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { LanguageProvider } from './context/LanguageContext';
 
 // Route guard components
 const ProtectedRoute = ({ children, allowedRoles, fallbackPath }) => {
@@ -63,65 +68,79 @@ const ProtectedRoute = ({ children, allowedRoles, fallbackPath }) => {
 
 function App() {
   return (
-    <Router>
-      <div className="min-h-screen bg-section font-sans text-dark">
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/restaurant/:id" element={<RestaurantDetails />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/order-tracking" element={<OrderTracking />} />
-          <Route path="/loyalty" element={<LoyaltyPage />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/offers" element={<Offers />} />
-          <Route path="/help" element={<Help />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/team" element={<Team />} />
-          <Route path="/careers" element={<Careers />} />
-          <Route path="/blog" element={<Blog />} />
-          <Route path="/partner" element={<PartnerWithUs />} />
-          <Route path="/ride" element={<RideWithUs />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/refund" element={<Refund />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/cookie" element={<Cookie />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/reset-password/:token" element={<ResetPassword />} />
+    <AuthProvider>
+      <SocketProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <SettingsProvider>
+              <Router>
+                <div className="min-h-screen bg-background font-sans text-text-main flex flex-col">
+                  <MaintenanceOverlay />
+                  <GlobalBroadcastBanner />
+                  <div className="flex-1">
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/restaurant/:id" element={<RestaurantDetails />} />
+                      <Route path="/cart" element={<Cart />} />
+                      <Route path="/checkout" element={<Checkout />} />
+                      <Route path="/profile" element={<Profile />} />
+                      <Route path="/order-tracking" element={<OrderTracking />} />
+                      <Route path="/loyalty" element={<LoyaltyPage />} />
+                      <Route path="/search" element={<Search />} />
+                      <Route path="/offers" element={<Offers />} />
+                      <Route path="/help" element={<Help />} />
+                      <Route path="/about" element={<About />} />
+                      <Route path="/team" element={<Team />} />
+                      <Route path="/careers" element={<Careers />} />
+                      <Route path="/blog" element={<Blog />} />
+                      <Route path="/partner" element={<PartnerWithUs />} />
+                      <Route path="/ride" element={<RideWithUs />} />
+                      <Route path="/terms" element={<Terms />} />
+                      <Route path="/refund" element={<Refund />} />
+                      <Route path="/privacy" element={<Privacy />} />
+                      <Route path="/cookie" element={<Cookie />} />
+                      <Route path="/login" element={<Login />} />
+                      <Route path="/signup" element={<Signup />} />
+                      <Route path="/forgot-password" element={<ForgotPassword />} />
+                      <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-          {/* Admin Routes — Protected */}
-          <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminDashboard /></ProtectedRoute>} />
-          <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminUsers /></ProtectedRoute>} />
-          <Route path="/admin/restaurants" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminRestaurants /></ProtectedRoute>} />
-          <Route path="/admin/restaurants/:id" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminRestaurantView /></ProtectedRoute>} />
-          <Route path="/admin/delivery-partners" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminDeliveryPartners /></ProtectedRoute>} />
-          <Route path="/admin/delivery-partners/:id" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminDeliveryPartnerView /></ProtectedRoute>} />
-          <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminOrders /></ProtectedRoute>} />
-          <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminSettings /></ProtectedRoute>} />
+                      {/* Admin Routes — Protected */}
+                      <Route path="/admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminDashboard /></ProtectedRoute>} />
+                      <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminUsers /></ProtectedRoute>} />
+                      <Route path="/admin/restaurants" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminRestaurants /></ProtectedRoute>} />
+                      <Route path="/admin/restaurants/:id" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminRestaurantView /></ProtectedRoute>} />
+                      <Route path="/admin/delivery-partners" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminDeliveryPartners /></ProtectedRoute>} />
+                      <Route path="/admin/delivery-partners/:id" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminDeliveryPartnerView /></ProtectedRoute>} />
+                      <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminOrders /></ProtectedRoute>} />
+                      <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']} fallbackPath="/login"><AdminSettings /></ProtectedRoute>} />
 
-          {/* Vendor Routes — Protected */}
-          <Route path="/vendor/login" element={<VendorLogin />} />
-          <Route path="/vendor/signup" element={<VendorSignup />} />
-          <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorDashboard /></ProtectedRoute>} />
-          <Route path="/vendor/menu" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorMenu /></ProtectedRoute>} />
-          <Route path="/vendor/orders" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorOrders /></ProtectedRoute>} />
-          <Route path="/vendor/history" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorHistory /></ProtectedRoute>} />
+                      {/* Vendor Routes — Protected */}
+                      <Route path="/vendor/login" element={<VendorLogin />} />
+                      <Route path="/vendor/signup" element={<VendorSignup />} />
+                      <Route path="/vendor/dashboard" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorDashboard /></ProtectedRoute>} />
+                      <Route path="/vendor/menu" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorMenu /></ProtectedRoute>} />
+                      <Route path="/vendor/orders" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorOrders /></ProtectedRoute>} />
+                      <Route path="/vendor/history" element={<ProtectedRoute allowedRoles={['restaurant_partner']} fallbackPath="/vendor/login"><VendorHistory /></ProtectedRoute>} />
 
-          {/* Delivery Routes — Protected */}
-          <Route path="/delivery/login" element={<RiderLogin />} />
-          <Route path="/delivery/signup" element={<RiderSignup />} />
-          <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryDashboard /></ProtectedRoute>} />
-          <Route path="/delivery/history" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryHistory /></ProtectedRoute>} />
-          <Route path="/delivery/earnings" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryEarnings /></ProtectedRoute>} />
-          <Route path="/delivery/profile" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryProfile /></ProtectedRoute>} />
-        </Routes>
+                      {/* Delivery Routes — Protected */}
+                      <Route path="/delivery/login" element={<RiderLogin />} />
+                      <Route path="/delivery/signup" element={<RiderSignup />} />
+                      <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryDashboard /></ProtectedRoute>} />
+                      <Route path="/delivery/history" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryHistory /></ProtectedRoute>} />
+                      <Route path="/delivery/earnings" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryEarnings /></ProtectedRoute>} />
+                      <Route path="/delivery/profile" element={<ProtectedRoute allowedRoles={['delivery_partner']} fallbackPath="/delivery/login"><DeliveryProfile /></ProtectedRoute>} />
+                    </Routes>
+                  </div>
 
-        {/* Global live order tracking popup for customers */}
-        <LiveOrderPopup />
-      </div>
-    </Router>
+                  {/* Global live order tracking popup for customers */}
+                  <LiveOrderPopup />
+                </div>
+              </Router>
+            </SettingsProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </SocketProvider>
+    </AuthProvider>
   );
 }
 

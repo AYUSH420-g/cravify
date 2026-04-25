@@ -18,6 +18,7 @@ const Checkout = () => {
     const navigate = useNavigate();
 
     const [addresses, setAddresses] = useState([]);
+    const [profile, setProfile] = useState(null);
     const [selectedAddressId, setSelectedAddressId] = useState(null);
     const [loadingAddresses, setLoadingAddresses] = useState(true);
     const [deliveryLocation, setDeliveryLocation] = useState(null);
@@ -31,6 +32,10 @@ const Checkout = () => {
     const [loyaltyBalance, setLoyaltyBalance] = useState(0);
     const [redeemPoints, setRedeemPoints] = useState(0);
     const [usePoints, setUsePoints] = useState(false);
+
+    // ESG & Tips
+    const [noCutlery, setNoCutlery] = useState(false);
+    const [tipAmount, setTipAmount] = useState(0);
 
     // Add-address modal state
     const [showAddModal, setShowAddModal] = useState(false);
@@ -49,7 +54,7 @@ const Checkout = () => {
     const offerDiscount = feeBreakdown?.offerDiscount ?? 0;
     const distanceKm = feeBreakdown?.distanceKm ?? 0;
     const loyaltyDiscount = usePoints ? Math.min(redeemPoints, Math.floor((cartTotal + deliveryFee + platformFee + gst - offerDiscount) * 0.5)) : 0;
-    const totalToPay = Math.max(0, cartTotal + deliveryFee + platformFee + gst - offerDiscount - loyaltyDiscount);
+    const totalToPay = Math.max(0, cartTotal + deliveryFee + platformFee + gst - offerDiscount - loyaltyDiscount + Number(tipAmount));
     const pointsWillEarn = Math.floor(cartTotal / 10);
 
     // ── Fetch saved addresses + loyalty on mount ──
@@ -65,10 +70,13 @@ const Checkout = () => {
                     fetch('/api/loyalty/balance', { headers: { 'x-auth-token': token } })
                 ]);
                 const profileData = await profileRes.json();
-                if (profileRes.ok && profileData.addresses) {
-                    setAddresses(profileData.addresses);
-                    if (profileData.addresses.length > 0) {
-                        setSelectedAddressId(profileData.addresses[0]._id);
+                if (profileRes.ok) {
+                    setProfile(profileData);
+                    if (profileData.addresses) {
+                        setAddresses(profileData.addresses);
+                        if (profileData.addresses.length > 0) {
+                            setSelectedAddressId(profileData.addresses[0]._id);
+                        }
                     }
                 }
                 const loyaltyData = await loyaltyRes.json();
@@ -257,7 +265,9 @@ const Checkout = () => {
                     deliveryLocation,
                     paymentMethod: 'COD',
                     loyaltyPointsToRedeem: loyaltyDiscount,
-                    offerCode: appliedOffer
+                    offerCode: appliedOffer,
+                    noCutlery,
+                    tipAmount: Number(tipAmount)
                 })
             });
             const data = await res.json();
@@ -332,7 +342,9 @@ const Checkout = () => {
                                     deliveryAddress: { street: selectedAddr.street, city: selectedAddr.city, zip: selectedAddr.zip },
                                     deliveryLocation,
                                     paymentMethod: selectedPayment === 'upi' ? 'UPI' : 'Card',
-                                    loyaltyPointsUsed: loyaltyDiscount
+                                    loyaltyPointsUsed: loyaltyDiscount,
+                                    noCutlery,
+                                    tipAmount: Number(tipAmount)
                                 }
                             })
                         });
@@ -367,11 +379,58 @@ const Checkout = () => {
         }
     };
 
+    // ── Place Order (Wallet) ──
+    const handlePlaceOrderWallet = async () => {
+        if ((profile?.walletBalance || 0) < totalToPay) {
+            alert('Insufficient wallet balance. Please top up or choose another payment method.');
+            return;
+        }
+
+        const selectedAddr = addresses.find(a => a._id === selectedAddressId);
+        if (!selectedAddr) { alert('Please select a delivery address.'); return; }
+
+        setPlacing(true);
+        try {
+            const res = await fetch('/api/customer/orders', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-auth-token': token },
+                body: JSON.stringify({
+                    restaurantId: restaurant._id || restaurant.id,
+                    items: cartItems.map(item => ({ name: item.name, quantity: item.quantity, price: item.price })),
+                    deliveryAddress: { street: selectedAddr.street, city: selectedAddr.city, zip: selectedAddr.zip },
+                    deliveryLocation,
+                    paymentMethod: 'Wallet',
+                    loyaltyPointsToRedeem: loyaltyDiscount,
+                    offerCode: appliedOffer,
+                    noCutlery,
+                    tipAmount: Number(tipAmount)
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                setEarnedPoints(data.pointsEarned || 0);
+                setOrderPlaced(true);
+                clearCart();
+                setTimeout(() => navigate('/order-tracking'), 3000);
+            } else {
+                alert(data.message || 'Failed to place order');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Something went wrong. Please try again.');
+        } finally {
+            setPlacing(false);
+        }
+    };
+
     const handlePlaceOrder = () => {
         if (!token) { alert('Please log in to place an order.'); navigate('/login'); return; }
         if (cartItems.length === 0) { alert('Your cart is empty!'); return; }
+        
         if (selectedPayment === 'cod') {
             handlePlaceOrderCOD();
+        } else if (selectedPayment === 'wallet') {
+            handlePlaceOrderWallet();
         } else {
             handlePlaceOrderRazorpay();
         }
@@ -513,6 +572,7 @@ const Checkout = () => {
                                     {[
                                         { id: 'upi', icon: <span className="font-bold text-xs text-primary">UPI</span>, title: 'UPI', desc: 'Google Pay, PhonePe, Paytm' },
                                         { id: 'card', icon: <CreditCard size={20} className="text-primary" />, title: 'Credit / Debit Card', desc: 'Visa, Mastercard, Amex' },
+                                        { id: 'wallet', icon: <Wallet size={20} className="text-primary" />, title: 'Cravify Wallet', desc: `Balance: ₹${profile?.walletBalance || 0}` },
                                         { id: 'cod', icon: <Banknote size={20} className="text-primary" />, title: 'Cash on Delivery', desc: 'Pay cash at your doorstep' }
                                     ].map(pm => (
                                         <div
@@ -532,6 +592,60 @@ const Checkout = () => {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+
+                            {/* ─── ESG (No Cutlery) Section ─── */}
+                            <div className="bg-green-50 p-6 rounded-2xl shadow-sm border border-green-100">
+                                <div className="flex items-start gap-4">
+                                    <div className="bg-green-100 p-3 rounded-xl text-green-600">
+                                        <Sparkles size={24} />
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="font-bold text-green-800">Environmental Impact</h3>
+                                        <p className="text-sm text-green-600 mb-4 leading-relaxed">
+                                            Opt-out of plastic cutlery and napkins. Help us reduce plastic waste in Gujarat!
+                                        </p>
+                                        <label className="flex items-center gap-3 cursor-pointer group">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={noCutlery}
+                                                onChange={(e) => setNoCutlery(e.target.checked)}
+                                                className="w-5 h-5 rounded border-green-300 text-green-600 focus:ring-green-500" 
+                                            />
+                                            <span className="font-bold text-green-700 group-hover:text-green-800 transition-colors">Don't send cutlery with this order</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* ─── Rider Tip Section ─── */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h2 className="text-xl font-bold flex items-center gap-3 mb-2">
+                                    <Gift className="text-dark" /> Add a Tip for Rider
+                                </h2>
+                                <p className="text-sm text-gray-500 mb-6 italic">100% of the tip goes to the delivery partner.</p>
+                                
+                                <div className="flex flex-wrap gap-3">
+                                    {[10, 20, 30, 50].map(amt => (
+                                        <button
+                                            key={amt}
+                                            onClick={() => setTipAmount(tipAmount === amt ? 0 : amt)}
+                                            className={`px-6 py-3 rounded-xl border-2 font-bold transition-all ${tipAmount === amt ? 'border-primary bg-red-50 text-primary' : 'border-gray-100 text-gray-600 hover:border-gray-200'}`}
+                                        >
+                                            ₹{amt}
+                                        </button>
+                                    ))}
+                                    <div className="relative flex-1 min-w-[120px]">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">₹</span>
+                                        <input 
+                                            type="number"
+                                            placeholder="Custom"
+                                            value={tipAmount || ''}
+                                            onChange={(e) => setTipAmount(e.target.value)}
+                                            className="w-full pl-8 pr-4 py-3 rounded-xl border-2 border-gray-100 focus:border-primary focus:outline-none font-bold"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
@@ -648,6 +762,12 @@ const Checkout = () => {
                                         <div className="flex justify-between text-green-600 text-sm font-bold">
                                             <span className="flex items-center gap-1"><Sparkles size={14} /> Loyalty Discount</span>
                                             <span>-₹{loyaltyDiscount.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    {tipAmount > 0 && (
+                                        <div className="flex justify-between text-dark text-sm font-bold">
+                                            <span className="flex items-center gap-1"><Gift size={14} /> Rider Tip</span>
+                                            <span>₹{Number(tipAmount).toFixed(2)}</span>
                                         </div>
                                     )}
                                 </div>

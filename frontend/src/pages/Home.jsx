@@ -3,9 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import CategoryItem from '../components/CategoryItem';
 import RestaurantCard from '../components/RestaurantCard';
-import { Search, MapPin, X, LayoutDashboard } from 'lucide-react';
+import { Search, MapPin, X, LayoutDashboard, Mic, Volume2 } from 'lucide-react';
 import Button from '../components/Button';
+import SurpriseMeButton from '../components/SurpriseMeButton';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
+// Using native SpeechRecognition for better reliability
 
 // Static categories (these don't come from DB)
 const categories = [
@@ -17,12 +21,92 @@ const categories = [
     { id: 6, name: 'Cake', image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?auto=format&fit=crop&w=300&q=80' },
 ];
 
+
 const Home = () => {
     const [restaurants, setRestaurants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [heroSearch, setHeroSearch] = useState('');
     const navigate = useNavigate();
     const { user } = useAuth();
+    const { t } = useLanguage();
+    const { isDarkMode } = useTheme();
+
+    const [isListening, setIsListening] = useState(false);
+    const [voiceTranscript, setVoiceTranscript] = useState('');
+    const [voiceStatus, setVoiceStatus] = useState('Initializing...');
+
+    const handleVoiceSearch = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('Your browser does not support voice search. Please use Chrome or Edge.');
+            return;
+        }
+
+        // Show UI immediately
+        setIsListening(true);
+        setVoiceStatus('Requesting Microphone...');
+        setVoiceTranscript('');
+
+        try {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-IN';
+            recognition.interimResults = true;
+            recognition.continuous = true; // Keep listening even during short pauses
+            recognition.maxAlternatives = 1;
+
+            recognition.onstart = () => {
+                setVoiceStatus('Listening...');
+                console.log('Voice recognition started');
+            };
+
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const currentTranscript = finalTranscript || interimTranscript;
+                if (currentTranscript) {
+                    const cleanedTranscript = currentTranscript.replace(/[.,!?]$/, '').trim();
+                    setVoiceTranscript(cleanedTranscript);
+                    setHeroSearch(cleanedTranscript);
+                    setVoiceStatus('I hear you...');
+                }
+            };
+
+            recognition.onend = () => {
+                // If it ended but we still have the overlay open, it might be a timeout
+                if (isListening) {
+                    console.log('Recognition ended unexpectedly. Restarting...');
+                    try { recognition.start(); } catch (e) { }
+                }
+            };
+
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+                if (event.error === 'no-speech') {
+                    setVoiceStatus('Still listening... speak clearly');
+                    // Don't close the modal, just keep waiting
+                    return;
+                }
+                if (event.error === 'not-allowed') {
+                    alert('Microphone access denied. Please check your browser settings.');
+                    setIsListening(false);
+                }
+            };
+
+            recognition.start();
+        } catch (err) {
+            console.error('Failed to start speech recognition', err);
+            setIsListening(false);
+        }
+    };
     const isRestricted = user && user.role !== 'customer';
 
     useEffect(() => {
@@ -76,22 +160,22 @@ const Home = () => {
     return (
         <MainLayout>
             {/* Hero Section */}
-            <section className="relative h-[500px] flex items-center justify-center bg-gray-900">
+            <section className={`relative h-[500px] flex items-center justify-center transition-colors duration-500 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
                 <div className="absolute inset-0 overflow-hidden">
                     <img
                         src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1600&q=80"
                         alt="Food Background"
-                        className="w-full h-full object-cover opacity-40 hover:scale-105 transition-transform duration-1000"
+                        className={`w-full h-full object-cover transition-all duration-1000 ${isDarkMode ? 'opacity-40' : 'opacity-20'} hover:scale-105`}
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/60" />
+                    <div className={`absolute inset-0 bg-gradient-to-t ${isDarkMode ? 'from-black/80 via-black/20 to-black/60' : 'from-white/80 via-white/20 to-white/60'}`} />
                 </div>
 
-                <div className="relative z-10 text-center text-white px-4 max-w-4xl w-full">
-                    <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight drop-shadow-lg">
+                <div className={`relative z-10 text-center px-4 max-w-4xl w-full ${isDarkMode ? 'text-white' : 'text-dark'}`}>
+                    <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight drop-shadow-sm">
                         Discover the best food & drinks in <span className="text-primary">Gujarat</span>
                     </h1>
-                    <p className="text-xl text-gray-200 mb-10 font-light drop-shadow-md">
-                        {isRestricted ? `Welcome back to the ${user.role.replace('_partner', '').charAt(0).toUpperCase() + user.role.replace('_partner', '').slice(1)} Control Center.` : 'Order from your favorite restaurants & track on the go.'}
+                    <p className={`text-xl mb-10 font-light ${isDarkMode ? 'text-gray-200' : 'text-gray-600'}`}>
+                        {isRestricted ? `Welcome back to the ${user.role.replace('_partner', '').charAt(0).toUpperCase() + user.role.replace('_partner', '').slice(1)} Control Center.` : t('welcome')}
                     </p>
 
                     {isRestricted ? (
@@ -104,36 +188,109 @@ const Home = () => {
                             </Link>
                         </div>
                     ) : (
-                        <form onSubmit={handleSearchSubmit} className="bg-white p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 max-w-3xl mx-auto">
-                            <div className="flex items-center px-4 py-2 border-b md:border-b-0 md:border-r border-gray-200 min-w-[200px]">
-                                <MapPin className="text-primary mr-2" />
-                                <input
-                                    type="text"
-                                    placeholder="Gujarat, India"
-                                    className="bg-transparent outline-none text-dark w-full placeholder:text-gray-400"
-                                />
-                            </div>
-                            <div className="flex-1 flex items-center px-4 py-2 relative">
-                                <Search className="text-gray-400 mr-2 shrink-0" />
-                                <input
-                                    type="text"
-                                    placeholder="Search for restaurant, cuisine or a dish"
-                                    className="bg-transparent outline-none text-dark w-full placeholder:text-gray-400"
-                                    value={heroSearch}
-                                    onChange={e => setHeroSearch(e.target.value)}
-                                />
-                                {heroSearch && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setHeroSearch('')}
-                                        className="text-gray-400 hover:text-gray-600 ml-1 cursor-pointer"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                )}
-                            </div>
-                            <Button type="submit" variant="primary" size="lg" className="md:w-32 h-12 md:h-auto">Search</Button>
-                        </form>
+                        <div className="w-full max-w-3xl mx-auto space-y-4">
+                            {/* Listening Overlay */}
+                            {isListening && (
+                                <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-xl flex items-center justify-center animate-in fade-in duration-300">
+                                    <div className="bg-white rounded-3xl p-10 max-w-lg w-full shadow-2xl text-center space-y-8 scale-in-center">
+                                        <div className="relative mx-auto w-32 h-32 flex items-center justify-center">
+                                            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
+                                            <div className="absolute inset-2 bg-primary/10 rounded-full animate-pulse"></div>
+                                            <div className="relative bg-primary text-white w-20 h-20 rounded-full flex items-center justify-center shadow-lg shadow-primary/40">
+                                                <Mic size={32} />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-2xl font-black text-dark mb-3">{voiceStatus}</h3>
+                                            <p className="text-gray-400 text-sm uppercase tracking-widest font-bold mb-4">Speak your craving</p>
+                                            <div className="bg-gray-50 rounded-2xl p-6 border-2 border-dashed border-gray-200">
+                                                <p className="text-primary text-2xl font-bold min-h-[60px] italic leading-relaxed">
+                                                    {voiceTranscript ? `"${voiceTranscript}"` : '...'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-4">
+                                            <Button
+                                                variant="outline"
+                                                className="flex-1 rounded-2xl py-4 font-bold border-2"
+                                                onClick={() => setIsListening(false)}
+                                            >
+                                                Cancel
+                                            </Button>
+                                            <Button
+                                                variant="primary"
+                                                className="flex-1 rounded-2xl py-4 font-bold shadow-lg shadow-primary/20"
+                                                onClick={() => {
+                                                    if (voiceTranscript) {
+                                                        const finalCleaned = voiceTranscript.replace(/[.,!?]$/, '').trim();
+                                                        navigate(`/search?q=${encodeURIComponent(finalCleaned)}`);
+                                                    }
+                                                }}
+                                            >
+                                                Search Now
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <form onSubmit={handleSearchSubmit} className="bg-white p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 relative z-10">
+                                <div className="flex items-center px-4 py-2 border-b md:border-b-0 md:border-r border-gray-200 min-w-[200px]">
+                                    <MapPin className="text-primary mr-2" />
+                                    <input
+                                        type="text"
+                                        placeholder="Gujarat, India"
+                                        className="bg-transparent outline-none text-dark w-full placeholder:text-gray-400"
+                                    />
+                                </div>
+                                <div className="flex-1 flex items-center px-4 py-2 relative group">
+                                    <Search className="text-gray-400 mr-2 shrink-0 group-focus-within:text-primary transition-colors" />
+                                    <input
+                                        type="text"
+                                        placeholder={t('search_placeholder')}
+                                        className="bg-transparent outline-none text-dark w-full placeholder:text-gray-400 font-medium"
+                                        value={heroSearch}
+                                        onChange={e => setHeroSearch(e.target.value)}
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={handleVoiceSearch}
+                                            className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-50 text-red-500 animate-pulse' : 'text-gray-400 hover:bg-gray-100 hover:text-primary'}`}
+                                            title="Voice Search"
+                                        >
+                                            <Mic size={18} />
+                                        </button>
+                                        {heroSearch && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setHeroSearch('')}
+                                                className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                            >
+                                                <X size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                                <Button type="submit" variant="primary" size="lg" className="md:w-32 h-12 md:h-auto rounded-xl">Search</Button>
+                            </form>
+
+                            {/* Popular Suggestions on Hero */}
+                            {!isSearching && (
+                                <div className="flex flex-wrap justify-center gap-3 animate-in fade-in slide-in-from-top-4 duration-1000 delay-300">
+                                    <span className={`text-xs font-bold uppercase tracking-widest mr-2 flex items-center ${isDarkMode ? 'text-white/60' : 'text-gray-400'}`}>Popular:</span>
+                                    {['Biryani', 'Pizza', 'Burger', 'Chinese', 'Sushi', 'Cakes'].map(s => (
+                                        <button
+                                            key={s}
+                                            onClick={() => setHeroSearch(s)}
+                                            className={`px-5 py-2 backdrop-blur-xl border rounded-full hover:bg-primary hover:border-primary hover:scale-105 active:scale-95 transition-all text-xs font-black shadow-xl group ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-gray-100 border-gray-200 text-dark'}`}
+                                        >
+                                            <span className="group-hover:animate-pulse">#{s}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
             </section>
@@ -196,7 +353,7 @@ const Home = () => {
                             <LayoutDashboard size={64} className="mx-auto text-primary mb-6 opacity-20" />
                             <h2 className="text-3xl font-bold text-dark mb-4">{user.role.replace('_', ' ').toUpperCase()} Mode Active</h2>
                             <p className="text-gray-500 mb-8 leading-relaxed">
-                                You are currently logged in as a {user.role.replace('_', ' ')}. 
+                                You are currently logged in as a {user.role.replace('_', ' ')}.
                                 Ordering and partner registration features are disabled for this account role.
                             </p>
                             <Link to={user.role === 'admin' ? '/admin/dashboard' : user.role === 'restaurant_partner' ? '/vendor/dashboard' : '/delivery/dashboard'}>
@@ -207,6 +364,7 @@ const Home = () => {
                 </section>
             )}
 
+            {!isRestricted && <SurpriseMeButton />}
         </MainLayout>
     );
 };
