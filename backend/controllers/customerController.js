@@ -165,10 +165,56 @@ exports.getRestaurantById = async (req, res) => {
     }
 };
 
+// Surprise Me Logic: Picks a random dish from a top-rated online restaurant
+exports.getSurpriseMe = async (req, res) => {
+    try {
+        const candidates = await Restaurant.aggregate([
+            { $match: { isOnline: true, rating: { $gte: 4.0 } } },
+            { $sample: { size: 1 } }
+        ]);
+
+        if (candidates.length === 0) {
+            return res.status(404).json({ 
+                message: 'No top-rated restaurants online right now. Try again later!',
+                success: false 
+            });
+        }
+
+        const restaurant = candidates[0];
+        const menu = restaurant.menu || [];
+        if (menu.length === 0) {
+            return res.status(404).json({ 
+                message: 'Found a restaurant but it has no menu items!',
+                success: false 
+            });
+        }
+
+        // Filter for dishes that have images if possible
+        const dishesWithImages = menu.filter(item => item.image);
+        const sourcePool = dishesWithImages.length > 0 ? dishesWithImages : menu;
+        const dish = sourcePool[Math.floor(Math.random() * sourcePool.length)];
+
+        res.json({ success: true, restaurant, dish });
+    } catch (err) {
+        console.error("Surprise Me Error:", err.message);
+        res.status(500).json({ success: false, message: 'Server error picking a surprise' });
+    }
+};
+
 // Place a new order (COD flow — Razorpay handled by payment controller)
 exports.placeOrder = async (req, res) => {
     try {
-        const { restaurantId, items, deliveryAddress, deliveryLocation, paymentMethod, loyaltyPointsToRedeem, offerCode } = req.body;
+        const { 
+            restaurantId, 
+            items, 
+            deliveryAddress, 
+            deliveryLocation, 
+            paymentMethod, 
+            loyaltyPointsToRedeem, 
+            offerCode,
+            noCutlery,
+            tipAmount
+        } = req.body;
 
         if (!restaurantId || !items || items.length === 0) {
             return res.status(400).json({ message: 'Restaurant and items are required' });
@@ -242,13 +288,13 @@ exports.placeOrder = async (req, res) => {
             appliedOfferCode = 'FREE_DELIVERY';
         }
 
-        let totalAmount = itemTotal + deliveryFee + platformFee + gst - offerDiscount;
+        let totalAmount = itemTotal + deliveryFee + platformFee + gst - offerDiscount + (Number(tipAmount) || 0);
 
         // Handle loyalty points redemption for COD
         let pointsUsed = 0;
         if (loyaltyPointsToRedeem && loyaltyPointsToRedeem > 0) {
             const user = await User.findById(req.user.id);
-            const maxRedeemable = Math.min(user.loyaltyPoints, Math.floor(totalAmount * 0.5));
+            const maxRedeemable = Math.min(user.loyaltyPoints, Math.floor((totalAmount - (Number(tipAmount) || 0)) * 0.5));
             pointsUsed = Math.min(loyaltyPointsToRedeem, maxRedeemable);
             totalAmount = totalAmount - pointsUsed;
         }
@@ -297,14 +343,41 @@ exports.placeOrder = async (req, res) => {
                 ? { lat: finalDeliveryLocation.lat, lng: finalDeliveryLocation.lng }
                 : undefined,
             paymentMethod: paymentMethod || 'COD',
-            paymentStatus: paymentMethod === 'COD' ? 'COD' : 'Pending',
+            paymentStatus: paymentMethod === 'Wallet' ? 'Paid' : (paymentMethod === 'COD' ? 'COD' : 'Pending'),
             loyaltyPointsUsed: pointsUsed,
             loyaltyPointsEarned: pointsEarned,
             deliveryEarning,
-            status: 'Placed'
+            status: 'Placed',
+            noCutlery: !!noCutlery,
+            tipAmount: Number(tipAmount) || 0
         });
 
+        // Handle Wallet Payment Deduction
+        if (paymentMethod === 'Wallet') {
+            const user = await User.findById(req.user.id);
+            if (user.walletBalance < totalAmount) {
+                return res.status(400).json({ message: 'Insufficient wallet balance' });
+            }
+            user.walletBalance -= totalAmount;
+            await user.save();
+
+            // Log deduction
+            await WalletTransaction.create({
+                user: user._id,
+                type: 'debit',
+                amount: totalAmount,
+                description: `Payment for Order #${order._id.toString().slice(-8).toUpperCase()}`,
+                order: order._id,
+                balanceAfter: user.walletBalance
+            });
+        }
+
         await order.save();
+
+        // If noCutlery, increment user's plasticItemsSaved (arbitrarily 3 items per order)
+        if (noCutlery) {
+            await User.findByIdAndUpdate(req.user.id, { $inc: { plasticItemsSaved: 3 } });
+        }
 
         // Deduct loyalty points if used
         if (pointsUsed > 0) {
@@ -522,3 +595,53 @@ exports.submitOrderRating = async (req, res) => {
         res.status(500).json({ message: 'Server error submitting rating' });
     }
 };
+
+const WalletTransaction = require('../models/WalletTransaction');
+
+// Wallet Top-Up Logic
+exports.topUpWallet = async (req, res) => {
+    try {
+        const { amount } = req.body;
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ message: 'Invalid amount' });
+        }
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        user.walletBalance = (user.walletBalance || 0) + Number(amount);
+        await user.save();
+
+        // Log transaction
+        await WalletTransaction.create({
+            user: user._id,
+            type: 'credit',
+            amount: Number(amount),
+            description: 'Wallet Top-up',
+            balanceAfter: user.walletBalance
+        });
+
+        res.json({ 
+            success: true, 
+            message: `Successfully added ₹${amount} to your wallet!`,
+            newBalance: user.walletBalance 
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error topping up wallet' });
+    }
+};
+
+// Get Wallet History
+exports.getWalletHistory = async (req, res) => {
+    try {
+        const transactions = await WalletTransaction.find({ user: req.user.id })
+            .sort({ createdAt: -1 })
+            .limit(50);
+        res.json(transactions);
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error fetching wallet history' });
+    }
+};
+

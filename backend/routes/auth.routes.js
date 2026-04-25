@@ -85,4 +85,8 @@ router.post('/forgot-password', authController.forgotPassword);
 // @access  Public
 router.put('/reset-password/:token', authController.resetPasswordWithToken);
 
+// @route   PUT api/auth/theme
+// @access  Private
+router.put('/theme', authMiddleware, authController.updateTheme);
+
 module.exports = router;

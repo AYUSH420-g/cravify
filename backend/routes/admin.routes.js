@@ -74,6 +74,11 @@ router.put('/orders/:id/cancel', authMiddleware, roleAuth('admin'), adminControl
 // @access  Admin
 router.get('/restaurants', authMiddleware, roleAuth('admin'), adminController.getAllRestaurants);
 
+// @route   GET api/admin/settings/public
+// @desc    Get non-sensitive platform settings
+// @access  Public
+router.get('/settings/public', adminController.getPublicSettings);
+
 // @route   GET api/admin/settings
 // @desc    Get platform settings
 // @access  Admin
@@ -83,5 +88,11 @@ router.get('/settings', authMiddleware, roleAuth('admin'), adminController.getSe
 // @desc    Update platform settings
 // @access  Admin
 router.put('/settings', authMiddleware, roleAuth('admin'), adminController.updateSettings);
+
+// @route   POST api/admin/broadcast
+router.post('/broadcast', authMiddleware, roleAuth('admin'), adminController.broadcastMessage);
+
+// @route   POST api/admin/maintenance
+router.post('/maintenance', authMiddleware, roleAuth('admin'), adminController.toggleMaintenanceMode);
 
 module.exports = router;

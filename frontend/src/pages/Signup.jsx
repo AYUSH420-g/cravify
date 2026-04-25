@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
 
 const Signup = () => {
-    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'customer' });
+    const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'customer', referralCode: '' });
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
     const { register, googleLogin, user } = useAuth();
@@ -50,7 +50,7 @@ const Signup = () => {
             return;
         }
 
-        const res = await register(formData.name, formData.email, formData.password, formData.role);
+        const res = await register(formData.name, formData.email, formData.password, formData.role, formData.referralCode);
         
         if (res.success) {
             // Check if partner (waiting for approval)
@@ -161,6 +161,20 @@ const Signup = () => {
                                         <p className="text-[10px] text-gray-400">8+ chars, uppercase, number, special char</p>
                                     </div>
                                 )}
+                            </div>
+
+                            <div>
+                                <label htmlFor="referralCode" className="sr-only">Referral Code (Optional)</label>
+                                <input
+                                    id="referralCode"
+                                    name="referralCode"
+                                    type="text"
+                                    className="appearance-none rounded-xl relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                                    placeholder="Referral Code (Optional)"
+                                    value={formData.referralCode}
+                                    onChange={handleChange}
+                                />
+                                <p className="mt-1 text-[10px] text-gray-400 px-1 font-medium">Have a friend's code? Enter it to get ₹50 bonus! 🎁</p>
                             </div>
                         </div>
 
