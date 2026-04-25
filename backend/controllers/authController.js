@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const imagekit = require('../utils/imagekit');
 const { validatePincode } = require('../utils/pincode');
+const WalletTransaction = require('../models/WalletTransaction');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || 'DUMMY_CLIENT_ID');
 
@@ -18,10 +19,15 @@ const generateToken = (user) => {
     );
 };
 
+// Helper to generate unique referral code
+const generateReferralCode = () => {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+};
+
 // Register User
 exports.register = async (req, res, next) => {
     try {
-        const { name, email, password, role } = req.body;
+        const { name, email, password, role, referralCode: usedReferralCode } = req.body;
 
         if (!name || !email || !password) {
             return res.status(400).json({ message: 'Name, email and password are required' });
@@ -55,8 +61,40 @@ exports.register = async (req, res, next) => {
             email,
             password: hashedPassword,
             role: resolvedRole,
-            isVerified
+            isVerified,
+            referralCode: generateReferralCode()
         });
+
+
+// Handle referral
+if (usedReferralCode) {
+    const referrer = await User.findOne({ referralCode: usedReferralCode.toUpperCase() });
+    if (referrer) {
+        user.referredBy = referrer._id;
+        // Reward both with ₹50
+        user.walletBalance = 50;
+        referrer.walletBalance += 50;
+        await referrer.save();
+
+        // Log transactions
+        await WalletTransaction.create([
+            {
+                user: user._id,
+                type: 'credit',
+                amount: 50,
+                description: 'Referral Signup Bonus',
+                balanceAfter: 50
+            },
+            {
+                user: referrer._id,
+                type: 'credit',
+                amount: 50,
+                description: `Referral Bonus for inviting ${user.name}`,
+                balanceAfter: referrer.walletBalance
+            }
+        ]);
+    }
+}
 
         await user.save();
 
@@ -158,6 +196,7 @@ exports.registerVendor = async (req, res, next) => {
             phone,
             role: 'restaurant_partner',
             isVerified: false,
+            referralCode: generateReferralCode(),
             restaurantDetails: {
                 restaurantName,
                 address,
@@ -238,6 +277,7 @@ exports.registerRider = async (req, res, next) => {
             phone,
             role: 'delivery_partner',
             isVerified: false,
+            referralCode: generateReferralCode(),
             deliveryDetails: {
                 isOnline: false,
                 city,
@@ -282,7 +322,14 @@ exports.login = async (req, res, next) => {
         }
 
         const token = generateToken(user);
-        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+
+        // Ensure user has a referral code (for existing users)
+        if (!user.referralCode) {
+            user.referralCode = generateReferralCode();
+            await user.save();
+        }
+
+        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, referralCode: user.referralCode, theme: user.theme } });
 
     } catch (err) {
         console.error("Login Error:", err.message);
@@ -320,7 +367,8 @@ exports.googleLogin = async (req, res, next) => {
                 name,
                 email,
                 role: 'customer',
-                isVerified: true
+                isVerified: true,
+                referralCode: generateReferralCode()
             });
             await user.save();
         } else {
@@ -330,7 +378,14 @@ exports.googleLogin = async (req, res, next) => {
         }
 
         const token = generateToken(user);
-        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role } });
+
+        // Ensure user has a referral code
+        if (!user.referralCode) {
+            user.referralCode = generateReferralCode();
+            await user.save();
+        }
+
+        res.json({ token, user: { id: user.id, name: user.name, email: user.email, role: user.role, referralCode: user.referralCode, theme: user.theme } });
 
     } catch (err) {
         console.error("Google Login Error:", err.message);
@@ -442,6 +497,28 @@ exports.resetPasswordWithToken = async (req, res, next) => {
         res.json({ message: 'Password reset successful. You may now log in.' });
     } catch (err) {
         console.error(err.message);
+        const error = new Error('Server error');
+        error.statusCode = 500;
+        next(error);
+    }
+};
+// Update User Theme Preference
+exports.updateTheme = async (req, res, next) => {
+    try {
+        const { theme } = req.body;
+        if (!['light', 'dark'].includes(theme)) {
+            return res.status(400).json({ message: 'Invalid theme' });
+        }
+
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ message: 'User not found' });
+
+        user.theme = theme;
+        await user.save();
+
+        res.json({ success: true, theme: user.theme });
+    } catch (err) {
+        console.error("Update Theme Error:", err.message);
         const error = new Error('Server error');
         error.statusCode = 500;
         next(error);

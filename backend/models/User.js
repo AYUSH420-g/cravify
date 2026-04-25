@@ -59,11 +59,17 @@ const UserSchema = new mongoose.Schema({
     // Loyalty system
     loyaltyPoints: { type: Number, default: 0 },
     totalPointsEarned: { type: Number, default: 0 },
-    // Delivery partner wallet
+    // ESG Impact
+    plasticItemsSaved: { type: Number, default: 0 },
+    // Referral System
+    referralCode: { type: String, unique: true, sparse: true },
+    referredBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    // Wallet system (unified for all roles)
     walletBalance: { type: Number, default: 0 },
     totalEarnings: { type: Number, default: 0 },
     deliveryRating: { type: Number, default: 0 },
-    numDeliveryRatings: { type: Number, default: 0 }
+    numDeliveryRatings: { type: Number, default: 0 },
+    theme: { type: String, enum: ['light', 'dark'], default: 'light' }
 }, { timestamps: true });
 
 // email index already created by `unique: true` — no need to duplicate

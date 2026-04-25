@@ -7,6 +7,7 @@ const SettingsSchema = new mongoose.Schema({
     referralBonus: { type: Number, default: 10 },
     supportEmail: { type: String, default: 'support@cravify.com' },
     maintenanceMode: { type: Boolean, default: false },
+    globalBroadcastMessage: { type: String, default: '' },
     autoApproveRestaurants: { type: Boolean, default: false }
 }, { timestamps: true });
 

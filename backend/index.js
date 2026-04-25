@@ -55,6 +55,9 @@ app.use('/api', limiter);
 // Expose 'uploads' directory statically for public access to certificates
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const maintenance = require('./middleware/maintenance');
+app.use('/api', maintenance);
+
 // Routes
 app.use('/api/auth', require('./routes/auth.routes'));
 app.use('/api/admin', require('./routes/admin.routes'));
@@ -98,11 +101,11 @@ io.on('connection', (socket) => {
             console.warn(`Socket ${socket.id} tried to join order room without ID`);
             return;
         }
-        const room = `order_${orderId}`;
+        const room = `order_${orderId.toString()}`;
         socket.join(room);
         console.log(`Socket ${socket.id} JOINED tracking room: ${room}`);
         
-        // Optional: emit back confirmation
+        // Confirmation back to client
         socket.emit('joined_room', { room });
     });
 

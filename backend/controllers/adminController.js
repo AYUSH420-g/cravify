@@ -133,6 +133,20 @@ exports.getSettings = async (req, res) => {
     }
 };
 
+exports.getPublicSettings = async (req, res) => {
+    try {
+        const settings = await Settings.getInstance();
+        res.json({
+            maintenanceMode: settings.maintenanceMode,
+            globalBroadcastMessage: settings.globalBroadcastMessage,
+            supportEmail: settings.supportEmail
+        });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 exports.updateSettings = async (req, res) => {
     try {
         const { platformFee, referralBonus, supportEmail, maintenanceMode, autoApproveRestaurants } = req.body;
@@ -149,5 +163,47 @@ exports.updateSettings = async (req, res) => {
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ message: 'Server error updating settings' });
+    }
+};
+
+// ─── Broadcast & Maintenance ───
+
+exports.broadcastMessage = async (req, res) => {
+    try {
+        const { message } = req.body;
+        if (!message) return res.status(400).json({ message: 'Message is required' });
+
+        const settings = await Settings.getInstance();
+        settings.globalBroadcastMessage = message;
+        await settings.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('global_broadcast', { message });
+        }
+
+        res.json({ message: 'Broadcast sent to all active users', content: message });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+exports.toggleMaintenanceMode = async (req, res) => {
+    try {
+        const { enabled } = req.body;
+        const settings = await Settings.getInstance();
+        settings.maintenanceMode = enabled;
+        await settings.save();
+
+        const io = req.app.get('io');
+        if (io) {
+            io.emit('maintenance_update', { enabled });
+        }
+
+        res.json({ message: `Maintenance mode ${enabled ? 'enabled' : 'disabled'}`, enabled });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error' });
     }
 };
