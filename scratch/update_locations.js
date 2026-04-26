@@ -8,7 +8,8 @@ const sampleLocations = [
     { lat: 23.0063, lng: 72.5996 }, // Kankaria
     { lat: 23.0248, lng: 72.5707 }, // Riverfront
     { lat: 23.0305, lng: 72.5074 }, // Prahlad Nagar
-    { lat: 23.0646, lng: 72.5293 }  // Science City
+    { lat: 23.0646, lng: 72.5293 },  // Science City
+    
 ];
 
 async function updateRestaurantLocations() {
