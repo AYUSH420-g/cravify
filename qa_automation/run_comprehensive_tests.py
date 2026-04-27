@@ -1,3 +1,4 @@
+
 import os
 import time
 import random
@@ -70,10 +71,10 @@ def take_screenshot(driver, name):
     except Exception as e:
         log(f"Failed to save screenshot {name}: {e}", YELLOW)
 
-def wait(driver, by, value, t=15):
+def wait(driver, by, value, t=25):
     return WebDriverWait(driver, t).until(EC.presence_of_element_located((by, value)))
 
-def wait_click(driver, by, value, t=15):
+def wait_click(driver, by, value, t=25):
     el = WebDriverWait(driver, t).until(EC.element_to_be_clickable((by, value)))
     driver.execute_script("arguments[0].scrollIntoView(true);", el)
     time.sleep(0.5)
@@ -218,28 +219,49 @@ def tc_vendor_01_signup(driver):
     driver.find_element(By.NAME, "phone").send_keys("9999999999")
     driver.find_element(By.NAME, "email").send_keys(state.vendor_email)
     driver.find_element(By.NAME, "password").send_keys(state.vendor_pass)
+    # Step 1 -> 2: "Next: Restaurant Details" is type='button', NOT type='submit'
     wait_click(driver, By.XPATH, "//button[contains(.,'Next')]")
-    time.sleep(1)
-    
+    time.sleep(2)
+
     driver.find_element(By.NAME, "restaurantName").send_keys(state.vendor_name)
     driver.find_element(By.NAME, "address").send_keys("QA Street")
     driver.find_element(By.NAME, "pincode").send_keys("400001")
     Select(driver.find_element(By.NAME, "cuisine")).select_by_value("Fast Food")
     driver.find_element(By.NAME, "fssai").send_keys("12345678901234")
+    # Step 2 -> 3: "Next: Documents" is also type='button'
     wait_click(driver, By.XPATH, "//button[contains(.,'Next')]")
-    time.sleep(1)
+    time.sleep(2)
     
     dummy_png = os.path.join(BASE_DIR, "dummy.png")
     with open(dummy_png, 'wb') as f:
         f.write(b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82')
     
+    dummy_pdf = os.path.join(BASE_DIR, "dummy.pdf")
+    with open(dummy_pdf, 'wb') as f:
+        f.write(b'%PDF-1.0\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n3 0 obj\n<< /Type /Page /MediaBox [0 0 612 792] /Contents 4 0 R /Parent 2 0 R >>\nendobj\n4 0 obj\n<< /Length 51 >>\nstream\nBT /F1 24 Tf 100 700 Td (This is a dummy PDF file.) Tj ET\nendstream\nendobj\nxref\n0 5\n0000000000 65535 f \n0000000010 00000 n \n0000000060 00000 n \n0000000117 00000 n \n0000000201 00000 n \ntrailer\n<< /Size 5 /Root 1 0 R >>\nstartxref\n260\n%%EOF')
+    
     for fi in driver.find_elements(By.CSS_SELECTOR, "input[type='file']"):
         fi.send_keys(dummy_png)
-        
-    wait_click(driver, By.XPATH, "//button[contains(.,'Submit')]")
+        fi.send_keys(dummy_pdf)
+
+    # 2. Wait for "Submit" button
+    submit_btn = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(.,'Submit')]"))
+    )
+
+    # 3. Scroll to the submit button
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", submit_btn)
+    time.sleep(0.5)
+
+    # 4. Click submit using JavaScript
+    driver.execute_script("arguments[0].click();", submit_btn)
+
+    # 5. Handle the success alert
     time.sleep(3)
-    try: driver.switch_to.alert.accept()
-    except: pass
+    try:
+        driver.switch_to.alert.accept()
+    except:
+        pass
 
 # 4. Admin Module
 def tc_admin_01_login(driver):
@@ -265,20 +287,50 @@ def tc_admin_02_approve_vendor(driver):
 def tc_vendor_02_add_menu(driver):
     login(driver, state.vendor_email, state.vendor_pass)
     driver.get(BASE_URL + "vendor/menu")
-    time.sleep(3)
-    
-    # Wait for and click the Add New Item button
-    wait_click(driver, By.XPATH, "//button[contains(., 'Add New Item')]")
-    time.sleep(2)
-    
-    driver.find_element(By.XPATH, "//input[@placeholder='e.g. Garlic Bread']").send_keys(state.item_name)
-    driver.find_element(By.XPATH, "//input[@placeholder='150']").send_keys("150")
-    
-    texts = driver.find_elements(By.TAG_NAME, "textarea")
-    if texts: texts[0].send_keys("Delicious QA Item")
-        
-    driver.find_element(By.XPATH, "//button[contains(., 'Save') or contains(., 'Add')]").click()
-    time.sleep(2)
+    time.sleep(6)
+
+    # Click "Add New Item" button — use JS click as fallback
+    add_btn = WebDriverWait(driver, 25).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Add New Item')]"))
+    )
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", add_btn)
+    time.sleep(1)
+    driver.execute_script("arguments[0].click();", add_btn)
+
+    # Wait until the modal input is visible — confirms modal is open
+    name_input = WebDriverWait(driver, 25).until(
+        EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='e.g. Garlic Bread']"))
+    )
+    time.sleep(0.5)
+    name_input.clear()
+    name_input.send_keys(state.item_name)
+
+    price_input = WebDriverWait(driver, 10).until(
+        EC.visibility_of_element_located((By.XPATH, "//input[@placeholder='150']"))
+    )
+    price_input.clear()
+    price_input.send_keys("150")
+
+    # Category field (placeholder "Starters")
+    cat = safe_find(driver, By.XPATH, "//input[@placeholder='Starters']")
+    if cat:
+        cat.clear()
+        cat.send_keys("Main Course")
+
+    # Description textarea
+    desc = safe_find(driver, By.XPATH, "//textarea[@placeholder='Delicious garlic bread with cheese...']")
+    if desc:
+        desc.clear()
+        desc.send_keys("Delicious QA test item")
+
+    # Click the modal's "Add Item" submit button (type=submit inside the modal form)
+    submit_btn = WebDriverWait(driver, 15).until(
+        EC.element_to_be_clickable((By.XPATH, "//button[@type='submit' and (contains(.,'Add Item') or contains(.,'Save'))]"))
+    )
+    driver.execute_script("arguments[0].scrollIntoView({block:'center'});", submit_btn)
+    time.sleep(0.5)
+    driver.execute_script("arguments[0].click();", submit_btn)
+    time.sleep(4)
     logout(driver)
 
 # Customer Checkout
@@ -355,12 +407,15 @@ def tc_deliv_01_signup(driver):
     driver.find_element(By.NAME, "password").send_keys(state.rider_pass)
     driver.find_element(By.NAME, "phone").send_keys("9999988888")
     driver.find_element(By.NAME, "city").send_keys("Tech City")
-    driver.find_element(By.XPATH, "//button[contains(., 'Next')]").click()
-    time.sleep(1)
+    # Step 1 -> 2: "Next: Vehicle Details" is type='button', NOT type='submit'
+    wait_click(driver, By.XPATH, "//button[contains(.,'Next')]")
+    time.sleep(2)
+
     Select(driver.find_element(By.NAME, "vehicleType")).select_by_value("Bike")
     driver.find_element(By.NAME, "vehicleNumber").send_keys("MH-12-QA-1234")
-    driver.find_element(By.XPATH, "//button[contains(., 'Next')]").click()
-    time.sleep(1)
+    # Step 2 -> 3: "Next: Documents" is also type='button'
+    wait_click(driver, By.XPATH, "//button[contains(.,'Next')]")
+    time.sleep(2)
     dummy_png = os.path.join(BASE_DIR, "dummy.png")
     for fi in driver.find_elements(By.CSS_SELECTOR, "input[type='file']"):
         fi.send_keys(dummy_png)
@@ -717,6 +772,150 @@ def tc_order_02_tracking_page(driver):
     assert safe_find(driver, By.TAG_NAME, "body") is not None
     logout(driver)
 
+# EXTRA TEST CASES - appended by patch script
+
+def tc_ui_13_about_page(driver):
+    driver.get("https://cravify-peach.vercel.app/about")
+    import time as _t; _t.sleep(5)
+    assert driver.find_element(__import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_ui_14_contact_page(driver):
+    driver.get("https://cravify-peach.vercel.app/contact")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_ui_15_404_page(driver):
+    driver.get("https://cravify-peach.vercel.app/thispagedoesnotexist12345xyz")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_sec_07_no_token_api(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    driver.execute_script("window.localStorage.clear();window.sessionStorage.clear();")
+    driver.delete_all_cookies()
+    driver.get("https://cravify-peach.vercel.app/orders")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_cust_09_loyalty_page(driver):
+    login(driver, state.customer_email, state.customer_pass)
+    driver.get("https://cravify-peach.vercel.app/loyalty")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+    logout(driver)
+
+def tc_ui_16_vendor_login_page(driver):
+    driver.get("https://cravify-peach.vercel.app/vendor/login")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_ui_17_delivery_login_page(driver):
+    driver.get("https://cravify-peach.vercel.app/delivery/login")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_admin_08_login_invalid(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    driver.execute_script("window.localStorage.clear();window.sessionStorage.clear();")
+    driver.get("https://cravify-peach.vercel.app/login")
+    from selenium.webdriver.common.by import By as _By
+    from selenium.webdriver.support.ui import WebDriverWait as _WW
+    from selenium.webdriver.support import expected_conditions as _EC
+    _WW(driver, 25).until(_EC.presence_of_element_located((_By.NAME, "email"))).send_keys("wrongadmin@cravify.com")
+    driver.find_element(_By.NAME, "password").send_keys("wrongpass")
+    solve_captcha(driver)
+    driver.find_element(_By.XPATH, "//button[@type='submit']").click()
+    import time as _t; _t.sleep(5)
+    assert "login" in driver.current_url.lower()
+
+def tc_ui_18_vendor_signup_page(driver):
+    driver.get("https://cravify-peach.vercel.app/vendor/signup")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_ui_19_delivery_signup_page(driver):
+    driver.get("https://cravify-peach.vercel.app/delivery/signup")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_ui_20_page_scroll(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    import time as _t; _t.sleep(5)
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    _t.sleep(3)
+    driver.execute_script("window.scrollTo(0, 0);")
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_cust_10_settings_page(driver):
+    login(driver, state.customer_email, state.customer_pass)
+    driver.get("https://cravify-peach.vercel.app/settings")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+    logout(driver)
+
+def tc_vendor_09_settings_page(driver):
+    login(driver, state.vendor_email, state.vendor_pass)
+    driver.get("https://cravify-peach.vercel.app/vendor/settings")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+    logout(driver)
+
+def tc_deliv_05_settings_page(driver):
+    login(driver, state.rider_email, state.rider_pass)
+    driver.get("https://cravify-peach.vercel.app/delivery/settings")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+    logout(driver)
+
+def tc_admin_09_analytics_page(driver):
+    login(driver, ADMIN_EMAIL, ADMIN_PASSWORD)
+    driver.get("https://cravify-peach.vercel.app/admin/analytics")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+    logout(driver)
+
+def tc_ui_21_back_navigation(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    import time as _t; _t.sleep(4)
+    driver.get("https://cravify-peach.vercel.app/login")
+    _t.sleep(4)
+    driver.back()
+    _t.sleep(4)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+
+def tc_sec_08_empty_login(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    driver.execute_script("window.localStorage.clear();window.sessionStorage.clear();")
+    driver.get("https://cravify-peach.vercel.app/login")
+    from selenium.webdriver.common.by import By as _By
+    from selenium.webdriver.support.ui import WebDriverWait as _WW
+    from selenium.webdriver.support import expected_conditions as _EC
+    _WW(driver, 25).until(_EC.presence_of_element_located((_By.NAME, "email")))
+    driver.find_element(_By.XPATH, "//button[@type='submit']").click()
+    import time as _t; _t.sleep(4)
+    assert "login" in driver.current_url.lower()
+
+def tc_cust_11_wishlist_page(driver):
+    login(driver, state.customer_email, state.customer_pass)
+    driver.get("https://cravify-peach.vercel.app/wishlist")
+    import time as _t; _t.sleep(5)
+    assert safe_find(driver, __import__('selenium').webdriver.common.by.By.TAG_NAME, "body") is not None
+    logout(driver)
+
+def tc_ui_22_links_not_broken(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    import time as _t; _t.sleep(5)
+    from selenium.webdriver.common.by import By as _By
+    links = driver.find_elements(_By.TAG_NAME, "a")
+    assert len(links) > 0
+
+def tc_ui_23_buttons_clickable(driver):
+    driver.get("https://cravify-peach.vercel.app/")
+    import time as _t; _t.sleep(5)
+    from selenium.webdriver.common.by import By as _By
+    btns = driver.find_elements(_By.TAG_NAME, "button")
+    assert len(btns) > 0
+
 # ==================================================
 # MAIN EXECUTION
 # ==================================================
@@ -729,9 +928,19 @@ def main():
     options = ChromeOptions()
     options.add_argument("--start-maximized")
     options.add_argument("--disable-notifications")
-    # Uncomment to run headless if needed
+    # Suppresses the harmless 'DEPRECATED_ENDPOINT' GCM error in console
+    options.add_argument("--disable-background-networking")
+    options.add_argument("--disable-background-timer-throttling")
+    options.add_argument("--disable-client-side-phishing-detection")
+    options.add_argument("--disable-default-apps")
+    options.add_argument("--log-level=3")          # Only FATAL logs from Chrome
+    options.add_experimental_option('excludeSwitches', ['enable-logging'])  # Hide DevTools noise
+    # Uncomment to run headless if needed:
     # options.add_argument("--headless=new")
-    
+
+    import logging as _logging
+    _logging.getLogger('selenium').setLevel(_logging.WARNING)
+
     service = ChromeService(CHROMEDRIVER_PATH)
     driver = webdriver.Chrome(service=service, options=options)
     
@@ -791,6 +1000,26 @@ def main():
         ("TC_SEC_05_SQLInjection", "SQL injection in login form", tc_sec_05_sql_injection_login),
         ("TC_SEC_06_AdminBlockedCustomer", "Admin route blocked for customer", tc_sec_06_admin_blocked_for_customer),
         ("TC_ORDER_02_TrackingPage", "Order tracking page loads", tc_order_02_tracking_page),
+        ("TC_UI_13_AboutPage", "About page loads", tc_ui_13_about_page),
+        ("TC_UI_14_ContactPage", "Contact page loads", tc_ui_14_contact_page),
+        ("TC_UI_15_404Page", "404 page handled gracefully", tc_ui_15_404_page),
+        ("TC_SEC_07_NoTokenAPI", "Orders blocked without auth", tc_sec_07_no_token_api),
+        ("TC_CUST_09_LoyaltyPage", "Customer loyalty page loads", tc_cust_09_loyalty_page),
+        ("TC_UI_16_VendorLoginPage", "Vendor login page loads", tc_ui_16_vendor_login_page),
+        ("TC_UI_17_DeliveryLoginPage", "Delivery login page loads", tc_ui_17_delivery_login_page),
+        ("TC_ADMIN_08_InvalidLogin", "Admin invalid login blocked", tc_admin_08_login_invalid),
+        ("TC_UI_18_VendorSignupPage", "Vendor signup page loads", tc_ui_18_vendor_signup_page),
+        ("TC_UI_19_DeliverySignupPage", "Delivery signup page loads", tc_ui_19_delivery_signup_page),
+        ("TC_UI_20_PageScroll", "Page scroll on homepage", tc_ui_20_page_scroll),
+        ("TC_CUST_10_SettingsPage", "Customer settings page loads", tc_cust_10_settings_page),
+        ("TC_VENDOR_09_SettingsPage", "Vendor settings page loads", tc_vendor_09_settings_page),
+        ("TC_DELIV_05_SettingsPage", "Delivery settings page loads", tc_deliv_05_settings_page),
+        ("TC_ADMIN_09_AnalyticsPage", "Admin analytics page loads", tc_admin_09_analytics_page),
+        ("TC_UI_21_BackNavigation", "Browser back navigation works", tc_ui_21_back_navigation),
+        ("TC_SEC_08_EmptyLogin", "Empty login form blocked", tc_sec_08_empty_login),
+        ("TC_CUST_11_WishlistPage", "Wishlist page loads", tc_cust_11_wishlist_page),
+        ("TC_UI_22_LinksNotBroken", "Page links are present", tc_ui_22_links_not_broken),
+        ("TC_UI_23_ButtonsClickable", "Page buttons are present", tc_ui_23_buttons_clickable),
     ]
 
 

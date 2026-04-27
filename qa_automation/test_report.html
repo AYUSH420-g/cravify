@@ -1,26 +1,96 @@
-
-    <html>
-    <head>
-        <title>Cravify Test Report</title>
-        <style>
-            body { font-family: sans-serif; padding: 20px; }
-            table { border-collapse: collapse; width: 100%; margin-top: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-            .pass { color: green; font-weight: bold; }
-            .fail { color: red; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <h1>Cravify Automated Test Execution Report</h1>
-        <p><strong>Total Tests:</strong> 75</p>
-        <p><strong>Passed:</strong> 66 (88.00%)</p>
-        <p><strong>Failed:</strong> 9 (12.00%)</p>
-        <p><strong>Execution Time:</strong> 1m 12s</p>
-        <h2>Failed Cases</h2>
-        <ul>
-            <li>TC_VENDOR_02_AddMenu</li><li>TC_CUST_03_Checkout</li><li>TC_VENDOR_03_Accept</li><li>TC_DELIV_01_Signup</li><li>TC_ADMIN_03_ApproveDeliv</li><li>TC_DELIV_02_Flow</li><li>TC_ORDER_01_History</li><li>TC_UI_01_Navbar</li><li>TC_SEC_01_Protected</li>
-        </ul>
-    </body>
-    </html>
-    
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>Cravify QA Report — 2026-04-27 11:29:24</title><style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',sans-serif;background:#0d1117;color:#e6edf3;padding:2rem}
+h1{color:#f97316;font-size:2rem;margin-bottom:.3rem}
+.meta{color:#8b949e;font-size:.85rem;margin-bottom:1.5rem}
+.cards{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.card{background:#161b22;border-radius:10px;padding:1rem 1.5rem;min-width:130px;border:1px solid #30363d}
+.card .v{font-size:1.8rem;font-weight:700}.card .l{font-size:.75rem;color:#8b949e;margin-top:.2rem}
+.blue{color:#58a6ff}.green{color:#3fb950}.red{color:#f85149}.orange{color:#f97316}.yellow{color:#e3b341}
+.bar{height:10px;background:#21262d;border-radius:5px;margin-bottom:1.5rem;max-width:600px}
+.bar-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#3fb950,#2ea043)}
+h2{color:#f97316;margin:1rem 0 .5rem}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{background:#161b22;color:#f97316;padding:.6rem 1rem;text-align:left;border-bottom:2px solid #30363d}
+td{padding:.55rem 1rem;border-bottom:1px solid #21262d}
+.pass-row{background:#0d1f13}.fail-row{background:#1f0d0d}.skip-row{background:#161206}
+.pass{color:#3fb950;font-weight:600}.fail{color:#f85149;font-weight:600}.skip{color:#e3b341;font-weight:600}
+.err{color:#f87171;font-size:.78rem}a{color:#58a6ff}
+ul{padding-left:1.5rem;line-height:1.9}
+</style></head><body>
+<h1>🍔 Cravify QA — Automated Test Report</h1>
+<p class="meta">Generated: 2026-04-27 11:29:24 &nbsp;|&nbsp; Browser: Chrome &nbsp;|&nbsp; URL: https://cravify-peach.vercel.app/</p>
+<div class="cards">
+  <div class="card"><div class="v blue">35</div><div class="l">Total</div></div>
+  <div class="card"><div class="v green">10</div><div class="l">Passed</div></div>
+  <div class="card"><div class="v red">21</div><div class="l">Failed</div></div>
+  <div class="card"><div class="v yellow">4</div><div class="l">Skipped</div></div>
+  <div class="card"><div class="v orange">28.6%</div><div class="l">Pass Rate</div></div>
+  <div class="card"><div class="v blue">6m 15s</div><div class="l">Duration</div></div>
+</div>
+<div class="bar"><div class="bar-fill" style="width:28.6%"></div></div>
+<h2>📋 Test Results</h2>
+<table><thead><tr><th>ID</th><th>Test Name</th><th>Status</th><th>Error</th><th>Screenshot</th></tr></thead>
+<tbody><tr class="fail-row"><td>AUTH_01</td><td>Register Customer</td><td class="fail">❌ FAIL</td><td class="err">Message: </td><td><a href="screenshots/AUTH_01_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>AUTH_02</td><td>Block Duplicate Email</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/AUTH_02_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>AUTH_03</td><td>Reject Invalid Email Format</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/AUTH_03_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>AUTH_04</td><td>Reject Weak Password</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/AUTH_04_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>AUTH_05</td><td>Valid Login</td><td class="fail">❌ FAIL</td><td class="err">Valid login must navigate away from /login</td><td><a href="screenshots/AUTH_05_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>AUTH_06</td><td>Invalid Login Shows Error</td><td class="fail">❌ FAIL</td><td class="err">Error message must be visible on invalid login</td><td><a href="screenshots/AUTH_06_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>AUTH_07</td><td>Logout Clears Session</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/AUTH_07_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>AUTH_08</td><td>Session Persists on Refresh</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/AUTH_08_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>VEND_01</td><td>Vendor Signup</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/VEND_01_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>ADMIN_01</td><td>Admin Approves Vendor</td><td class="fail">❌ FAIL</td><td class="err">Vendor must appear in admin user list for approval</td><td><a href="screenshots/ADMIN_01_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>VEND_02</td><td>Vendor Adds Menu Item</td><td class="fail">❌ FAIL</td><td class="err">Message: </td><td><a href="screenshots/VEND_02_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="skip-row"><td>VEND_03</td><td>Vendor Edit Menu Button</td><td class="skip">⏭ SKIP</td><td class="err">vendor_02 failed</td><td>—</td></tr>
+<tr class="pass-row"><td>VEND_04</td><td>Vendor Views Orders Page</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/VEND_04_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>CUST_01</td><td>Browse Restaurants List</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid selector: Unable to locate an element with the xpath expression //h2 or //h3 because of the following e</td><td><a href="screenshots/CUST_01_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>CUST_02</td><td>Search Restaurant</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/CUST_02_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="pass-row"><td>CUST_03</td><td>Empty Checkout Blocked</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/CUST_03_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="skip-row"><td>CUST_04</td><td>Add Item to Cart</td><td class="skip">⏭ SKIP</td><td class="err">Menu item missing</td><td>—</td></tr>
+<tr class="skip-row"><td>CUST_05</td><td>Checkout & Place Order</td><td class="skip">⏭ SKIP</td><td class="err">Menu item missing</td><td>—</td></tr>
+<tr class="skip-row"><td>CUST_06</td><td>Order Appears in History</td><td class="skip">⏭ SKIP</td><td class="err">Order was not placed</td><td>—</td></tr>
+<tr class="pass-row"><td>DELIV_01</td><td>Delivery Rider Signup</td><td class="pass">✅ PASS</td><td class="err"></td><td><a href="screenshots/DELIV_01_PASS.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>ADMIN_02</td><td>Admin Approves Rider</td><td class="fail">❌ FAIL</td><td class="err">Rider must appear in admin user list</td><td><a href="screenshots/ADMIN_02_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>DELIV_02</td><td>Rider Accept & Deliver</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id: session deleted as the browser has closed the connection</td><td><a href="screenshots/DELIV_02_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>ADMIN_03</td><td>Admin Dashboard Stats</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/ADMIN_03_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>ADMIN_04</td><td>Admin User Search</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/ADMIN_04_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>SEC_01</td><td>Admin Route Blocks Anon</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/SEC_01_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>SEC_02</td><td>Admin Route Blocks Customer</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/SEC_02_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>SEC_03</td><td>XSS Payload Sanitized</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/SEC_03_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>SEC_04</td><td>SQL Injection Rejected</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/SEC_04_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>SEC_05</td><td>Empty Login Blocked</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/SEC_05_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>SEC_06</td><td>Vendor Route Blocks Anon</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/SEC_06_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>UI_01</td><td>Navbar Visible</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/UI_01_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>UI_02</td><td>No Horizontal Scroll Mobile</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/UI_02_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>UI_03</td><td>No Broken Images</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/UI_03_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>PERF_01</td><td>Homepage Load Under Threshold</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/PERF_01_FAIL.png" target="_blank">📷</a></td></tr>
+<tr class="fail-row"><td>PERF_02</td><td>Login Response Under Threshold</td><td class="fail">❌ FAIL</td><td class="err">Message: invalid session id</td><td><a href="screenshots/PERF_02_FAIL.png" target="_blank">📷</a></td></tr>
+</tbody></table>
+<h2>❌ Failed Cases</h2><ul class="fail"><li>AUTH_01 — Message: </li>
+<li>AUTH_05 — Valid login must navigate away from /login</li>
+<li>AUTH_06 — Error message must be visible on invalid login</li>
+<li>ADMIN_01 — Vendor must appear in admin user list for approval</li>
+<li>VEND_02 — Message: </li>
+<li>CUST_01 — Message: invalid selector: Unable to locate an element with the xpath expression //h2 or //h3 because of the following e</li>
+<li>ADMIN_02 — Rider must appear in admin user list</li>
+<li>DELIV_02 — Message: invalid session id: session deleted as the browser has closed the connection</li>
+<li>ADMIN_03 — Message: invalid session id</li>
+<li>ADMIN_04 — Message: invalid session id</li>
+<li>SEC_01 — Message: invalid session id</li>
+<li>SEC_02 — Message: invalid session id</li>
+<li>SEC_03 — Message: invalid session id</li>
+<li>SEC_04 — Message: invalid session id</li>
+<li>SEC_05 — Message: invalid session id</li>
+<li>SEC_06 — Message: invalid session id</li>
+<li>UI_01 — Message: invalid session id</li>
+<li>UI_02 — Message: invalid session id</li>
+<li>UI_03 — Message: invalid session id</li>
+<li>PERF_01 — Message: invalid session id</li>
+<li>PERF_02 — Message: invalid session id</li></ul>
+<h2>⏭ Skipped Cases</h2><ul class="yellow"><li>VEND_03 — vendor_02 failed</li>
+<li>CUST_04 — Menu item missing</li>
+<li>CUST_05 — Menu item missing</li>
+<li>CUST_06 — Order was not placed</li></ul>
+</body></html>
