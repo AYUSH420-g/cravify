@@ -19,9 +19,3 @@ frontend/node_modules/
 frontend/.env
 frontend/dist/
 frontend/build/
-
-
-# QA Automation
-
-# Misc
-__pycache__
