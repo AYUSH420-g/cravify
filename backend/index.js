@@ -97,15 +97,19 @@ io.on('connection', (socket) => {
     // Tracking rooms for specific orders
     socket.on('join_order_room', (orderId) => {
         if (!orderId) {
-            console.warn(`Socket ${socket.id} tried to join order room without ID`);
+            console.warn(`❌ Socket ${socket.id} tried to join order room without ID`);
             return;
         }
         const room = `order_${orderId.toString()}`;
         socket.join(room);
-        console.log(`Socket ${socket.id} JOINED tracking room: ${room}`);
+        
+        // Detailed room check
+        const rooms = Array.from(socket.rooms);
+        console.log(`📡 Socket ${socket.id} (User: ${socket.handshake.auth.token ? 'Auth' : 'No-Auth'}) JOINED room: ${room}`);
+        console.log(`   Active rooms for this socket:`, rooms);
 
-        // Confirmation back to client
-        socket.emit('joined_room', { room });
+        // Confirmation back to client for robustness
+        socket.emit('joined_room', { room, socketId: socket.id });
     });
 
     // Personal room for general notifications (like status updates while browsing)

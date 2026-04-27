@@ -115,24 +115,16 @@ const AdminSettings = () => {
                         <h3 className="text-xl font-bold text-dark mb-4">Financial Configuration</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Platform Fee (%)</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Platform Fee (₹)</label>
                                 <input
                                     type="number"
                                     name="platformFee"
                                     value={settings.platformFee}
                                     onChange={handleChange}
+                                    placeholder="e.g., 5"
                                     className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-primary focus:border-primary"
                                 />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Referral Bonus Amount (₹)</label>
-                                <input
-                                    type="number"
-                                    name="referralBonus"
-                                    value={settings.referralBonus}
-                                    onChange={handleChange}
-                                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-primary focus:border-primary"
-                                />
+                                <p className="text-xs text-gray-500 mt-1">This is a flat fee charged per order.</p>
                             </div>
                         </div>
                     </div>

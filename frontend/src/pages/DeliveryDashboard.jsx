@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import MainLayout from '../layouts/MainLayout';
-import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Loader2, MessageCircle, Send } from 'lucide-react';
+import { MapPin, Navigation, CheckCircle, Clock, Bell, Phone, AlertTriangle, Shield, Loader2, MessageCircle, Send, Star, X, Settings } from 'lucide-react';
 import Button from '../components/Button';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -35,6 +35,8 @@ const DeliveryDashboard = () => {
     const [todayEarnings, setTodayEarnings] = useState(0);
     const [walletBalance, setWalletBalance] = useState(0);
     const [totalEarnings, setTotalEarnings] = useState(0);
+    const [ratings, setRatings] = useState([]);
+    const [isRatingsOpen, setIsRatingsOpen] = useState(false);
     const [tick, setTick] = useState(0);
 
     useEffect(() => {
@@ -173,8 +175,10 @@ const DeliveryDashboard = () => {
     useEffect(() => {
         if (!socket) return;
 
+        console.log('Registering Rider Dashboard socket listeners. Socket ID:', socket.id);
+
         const handleReceiveMessage = (message) => {
-            console.log('Chat message received by Rider:', message);
+            console.log('RIDER CHAT EVENT [receive_message]:', message);
             const msgOrderId = (message.order?._id || message.order || '').toString();
             const currentOrderId = (chatOrderIdRef.current || '').toString();
             
@@ -189,6 +193,8 @@ const DeliveryDashboard = () => {
                     return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
                 });
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else {
+                console.warn('Rider chat message for different order ignored:', { msgOrderId, currentOrderId });
             }
         };
 
@@ -196,6 +202,7 @@ const DeliveryDashboard = () => {
         socket.on('chat_message', handleReceiveMessage);
 
         return () => {
+            console.log('Cleaning up Rider Dashboard socket listeners');
             socket.off('receive_message', handleReceiveMessage);
             socket.off('chat_message', handleReceiveMessage);
         };
@@ -204,10 +211,22 @@ const DeliveryDashboard = () => {
     // Join order room + rejoin on reconnect whenever active order changes
     useEffect(() => {
         if (!activeOrder?._id || !socket) return;
-        socket.emit('join_order_room', activeOrder._id);
-        const handleReconnect = () => socket.emit('join_order_room', activeOrder._id);
-        socket.on('connect', handleReconnect);
-        return () => socket.off('connect', handleReconnect);
+
+        const joinRoom = () => {
+            console.log('RIDER: Emitting join_order_room for:', activeOrder._id);
+            socket.emit('join_order_room', activeOrder._id);
+        };
+
+        joinRoom();
+
+        // Re-join on every connect/reconnect
+        socket.on('connect', joinRoom);
+        socket.io.on('reconnect', joinRoom);
+
+        return () => {
+            socket.off('connect', joinRoom);
+            socket.io.off('reconnect', joinRoom);
+        };
     }, [activeOrder?._id, socket]);
 
     // Load chat history only when orderId actually changes (NOT on every 10s poll)
@@ -217,7 +236,7 @@ const DeliveryDashboard = () => {
         setChatMessages([]);
         setUnreadCount(0);
         fetch(`/api/chat/${activeOrder._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { 'x-auth-token': token }
         })
             .then(res => res.json())
             .then(data => {
@@ -252,7 +271,7 @@ const DeliveryDashboard = () => {
     const fetchWallet = async () => {
         try {
             const res = await fetch('/api/delivery/history', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'x-auth-token': token }
             });
             if (res.ok) {
                 const data = await res.json();
@@ -265,10 +284,24 @@ const DeliveryDashboard = () => {
         }
     };
 
+    const fetchRatings = async () => {
+        try {
+            const res = await fetch('/api/delivery/ratings', {
+                headers: { 'x-auth-token': token }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setRatings(data.ratings || []);
+            }
+        } catch (err) {
+            console.error('Failed to fetch ratings', err);
+        }
+    };
+
     const fetchActiveOrder = async () => {
         try {
             const activeRes = await fetch('/api/delivery/active', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'x-auth-token': token }
             });
             if (activeRes.ok) {
                 const activeData = await activeRes.json();
@@ -286,7 +319,7 @@ const DeliveryDashboard = () => {
         }
         try {
             const availableRes = await fetch('/api/delivery/available', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'x-auth-token': token }
             });
             if (availableRes.ok) {
                 const availableData = await availableRes.json();
@@ -325,7 +358,7 @@ const DeliveryDashboard = () => {
         try {
             const res = await fetch(`/api/delivery/orders/${orderId}/accept`, {
                 method: 'PUT',
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'x-auth-token': token }
             });
             
             if (res.ok) {
@@ -364,7 +397,7 @@ const DeliveryDashboard = () => {
                     try {
                         await fetch(`/api/chat/${activeOrder._id}`, {
                             method: 'DELETE',
-                            headers: { Authorization: `Bearer ${token}` }
+                            headers: { 'x-auth-token': token }
                         });
                     } catch (e) { console.error('Chat cleanup failed', e); }
                     setActiveOrder(null);
@@ -402,7 +435,7 @@ const DeliveryDashboard = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
+                    'x-auth-token': token
                 },
                 body: JSON.stringify({
                     text: msgText,
@@ -439,15 +472,14 @@ const DeliveryDashboard = () => {
             <div className="min-h-screen bg-gray-50 pb-20 md:pb-0">
                 <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-20">
                     <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-                            <span className={`font-bold ${isOnline ? 'text-green-600' : 'text-gray-500'}`}>
-                                {isOnline ? 'You are Online' : 'You are Offline'}
+                        <div className="flex items-center gap-2">
+                            <span className={`text-xs font-black uppercase tracking-widest ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                                {isOnline ? 'Online' : 'Offline'}
                             </span>
                         </div>
                         <label className="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" className="sr-only peer" checked={isOnline} onChange={handleToggleOnline} disabled={actionLoading} />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600"></div>
+                            <div className="w-16 h-8 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-[#22C55E] after:flex after:items-center after:justify-center after:text-[10px] after:text-gray-300 after:font-light after:content-['|||'] after:rotate-90 after:shadow-sm"></div>
                         </label>
                     </div>
                 </div>
@@ -467,13 +499,16 @@ const DeliveryDashboard = () => {
                             <p className="text-gray-500 text-xs">Total Earned</p>
                             <h3 className="text-xl font-bold text-dark">₹{totalEarnings}</h3>
                         </Link>
-                        <Link to="/delivery/profile" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors cursor-pointer">
-                            <p className="text-gray-500 text-xs">Profile & Ratings</p>
+                        <div 
+                            onClick={() => { fetchRatings(); setIsRatingsOpen(true); }}
+                            className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:border-yellow-200 transition-colors cursor-pointer group"
+                        >
+                            <p className="text-gray-500 text-xs group-hover:text-yellow-600 transition-colors">Feedback & Ratings</p>
                             <div className="flex items-center gap-1">
                                 <span className="text-xl font-bold text-dark">{user?.deliveryRating?.toFixed(1) || '0.0'}</span>
                                 <span className="text-yellow-500">★</span>
                             </div>
-                        </Link>
+                        </div>
                     </div>
 
                     {loading ? (
@@ -585,6 +620,15 @@ const DeliveryDashboard = () => {
                                                             </span>
                                                         )}
                                                     </Button>
+                                                    
+                                                    {activeOrder.deliveryInstructions && (
+                                                        <div className="w-full mt-3 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                                            <p className="text-[10px] text-blue-600 font-black uppercase tracking-wider mb-1 flex items-center gap-1">
+                                                                <Navigation size={10} /> Delivery Instructions
+                                                            </p>
+                                                            <p className="text-sm font-bold text-blue-800">{activeOrder.deliveryInstructions}</p>
+                                                        </div>
+                                                    )}
                                                     
                                                     <Button size="sm" variant="primary" className="bg-green-600 hover:bg-green-700 border-green-600" onClick={() => handleStatusUpdate('Delivered')} disabled={actionLoading}>
                                                         {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Complete Delivery'}
@@ -765,6 +809,75 @@ const DeliveryDashboard = () => {
                                         {actionLoading ? <Loader2 size={16} className="animate-spin" /> : 'Accept Order'}
                                     </Button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Ratings & Feedback Modal */}
+                {isRatingsOpen && (
+                    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4 animate-fadeIn">
+                        <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+                            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-yellow-50/50">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-yellow-100 text-yellow-600 rounded-2xl flex items-center justify-center">
+                                        <Star size={24} fill="currentColor" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black text-dark tracking-tight">Customer Feedback</h2>
+                                        <p className="text-xs text-yellow-700 font-bold uppercase tracking-wider">Live Ratings from Orders</p>
+                                    </div>
+                                </div>
+                                <button onClick={() => setIsRatingsOpen(false)} className="text-gray-400 hover:text-dark">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50">
+                                {ratings.length === 0 ? (
+                                    <div className="text-center py-12">
+                                        <Star size={40} className="mx-auto text-gray-200 mb-4" />
+                                        <p className="text-gray-500 font-bold">No ratings received yet</p>
+                                        <p className="text-xs text-gray-400 mt-1">Complete more deliveries to get feedback!</p>
+                                    </div>
+                                ) : (
+                                    ratings.map((rating, idx) => (
+                                        <div key={idx} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 animate-slideUp">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 bg-primary/5 rounded-full flex items-center justify-center text-primary font-bold text-xs">
+                                                        {rating.user?.name?.charAt(0).toUpperCase() || 'C'}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-sm text-dark">{rating.user?.name || 'Customer'}</h4>
+                                                        <p className="text-[10px] text-gray-400">{new Date(rating.updatedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-0.5 bg-yellow-50 px-2 py-1 rounded-lg">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <Star 
+                                                            key={i} 
+                                                            size={10} 
+                                                            fill={i < rating.deliveryRating ? '#EAB308' : 'none'} 
+                                                            className={i < rating.deliveryRating ? 'text-yellow-500' : 'text-gray-200'} 
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            {rating.ratingComment && (
+                                                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
+                                                    <p className="text-sm text-gray-600 italic">"{rating.ratingComment}"</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                            
+                            <div className="p-6 bg-white border-t border-gray-100">
+                                <Button variant="primary" className="w-full py-4 rounded-2xl" onClick={() => setIsRatingsOpen(false)}>
+                                    Close Feedback
+                                </Button>
                             </div>
                         </div>
                     </div>

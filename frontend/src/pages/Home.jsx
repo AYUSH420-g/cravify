@@ -26,6 +26,8 @@ const Home = () => {
     const [restaurants, setRestaurants] = useState([]);
     const [loading, setLoading] = useState(true);
     const [heroSearch, setHeroSearch] = useState('');
+    const [categories, setCategories] = useState([]);
+    const [inspirationItems, setInspirationItems] = useState([]);
     const navigate = useNavigate();
     const { user } = useAuth();
     const { t } = useLanguage();
@@ -116,6 +118,26 @@ const Home = () => {
                 const data = await res.json();
                 if (res.ok) {
                     setRestaurants(data);
+                    
+                    // ── Derived categories from DB cuisines ──
+                    const cuisineSet = new Set();
+                    data.forEach(r => r.cuisines?.forEach(c => cuisineSet.add(c)));
+                    const dbCategories = Array.from(cuisineSet).map((name, idx) => ({
+                        id: idx,
+                        name,
+                        image: `https://source.unsplash.com/featured/300x300/?food,${name.toLowerCase()}`
+                    })).slice(0, 10);
+                    setCategories(dbCategories);
+
+                    // ── Derived random inspiration items ──
+                    const allProducts = [];
+                    data.forEach(r => {
+                        r.menu?.forEach(item => {
+                            allProducts.push({ ...item, restaurantId: r._id });
+                        });
+                    });
+                    const shuffled = allProducts.sort(() => 0.5 - Math.random()).slice(0, 8);
+                    setInspirationItems(shuffled);
                 }
             } catch (e) {
                 console.error('Failed to fetch restaurants:', e);
@@ -235,20 +257,12 @@ const Home = () => {
                             )}
 
                             <form onSubmit={handleSearchSubmit} className="bg-white p-3 rounded-2xl shadow-2xl flex flex-col md:flex-row gap-2 relative z-10">
-                                <div className="flex items-center px-4 py-2 border-b md:border-b-0 md:border-r border-gray-200 min-w-[200px]">
-                                    <MapPin className="text-primary mr-2" />
-                                    <input
-                                        type="text"
-                                        placeholder="Gujarat, India"
-                                        className="bg-transparent outline-none text-dark w-full placeholder:text-gray-400"
-                                    />
-                                </div>
                                 <div className="flex-1 flex items-center px-4 py-2 relative group">
                                     <Search className="text-gray-400 mr-2 shrink-0 group-focus-within:text-primary transition-colors" />
                                     <input
                                         type="text"
                                         placeholder={t('search_placeholder')}
-                                        className="bg-transparent outline-none text-dark w-full placeholder:text-gray-400 font-medium"
+                                        className="!bg-transparent outline-none text-dark w-full placeholder:text-gray-400 font-medium"
                                         value={heroSearch}
                                         onChange={e => setHeroSearch(e.target.value)}
                                     />
@@ -275,17 +289,17 @@ const Home = () => {
                                 <Button type="submit" variant="primary" size="lg" className="md:w-32 h-12 md:h-auto rounded-xl">Search</Button>
                             </form>
 
-                            {/* Popular Suggestions on Hero */}
-                            {!isSearching && (
+                            {/* Popular Suggestions on Hero (from dynamic categories) */}
+                            {!isSearching && categories.length > 0 && (
                                 <div className="flex flex-wrap justify-center gap-3 animate-in fade-in slide-in-from-top-4 duration-1000 delay-300">
                                     <span className={`text-xs font-bold uppercase tracking-widest mr-2 flex items-center ${isDarkMode ? 'text-white/60' : 'text-gray-400'}`}>Popular:</span>
-                                    {['Biryani', 'Pizza', 'Burger', 'Chinese', 'Sushi', 'Cakes'].map(s => (
+                                    {categories.slice(0, 6).map(cat => (
                                         <button
-                                            key={s}
-                                            onClick={() => setHeroSearch(s)}
+                                            key={cat.id}
+                                            onClick={() => setHeroSearch(cat.name)}
                                             className={`px-5 py-2 backdrop-blur-xl border rounded-full hover:bg-primary hover:border-primary hover:scale-105 active:scale-95 transition-all text-xs font-black shadow-xl group ${isDarkMode ? 'bg-white/5 border-white/10 text-white' : 'bg-gray-100 border-gray-200 text-dark'}`}
                                         >
-                                            <span className="group-hover:animate-pulse">#{s}</span>
+                                            <span className="group-hover:animate-pulse">#{cat.name}</span>
                                         </button>
                                     ))}
                                 </div>
@@ -297,20 +311,60 @@ const Home = () => {
 
             {/* Live search results (replaces categories + restaurants when typing) */}
             {isSearching ? (
-                // ... search results section
-                <section className="py-16 bg-white">
-                    {/* ... (existing content) */}
+                // ... search results section (omitted for brevity, assume unchanged or wrap)
+                <section className="py-16 bg-white min-h-[400px]">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex justify-between items-center mb-8">
+                            <h2 className="text-2xl font-bold text-dark">Results for "{heroSearch}"</h2>
+                            <button onClick={() => setHeroSearch('')} className="text-primary font-bold text-sm hover:underline">Clear</button>
+                        </div>
+                        {filteredRestaurants.length === 0 ? (
+                            <div className="text-center py-20">
+                                <Search size={48} className="mx-auto text-gray-300 mb-4" />
+                                <p className="text-gray-500">No matches found for your search.</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                                {filteredRestaurants.map(rest => (
+                                    <RestaurantCard
+                                        key={rest._id}
+                                        id={rest._id}
+                                        name={rest.name}
+                                        image={rest.image}
+                                        rating={rest.rating}
+                                        deliveryTime={rest.deliveryTime}
+                                        priceForTwo={rest.priceForTwo}
+                                        cuisines={rest.cuisines}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </section>
             ) : !isRestricted ? (
                 <>
-                    {/* Categories Section */}
+                    {/* Inspiration Section (Random Products) */}
                     <section className="py-16 bg-section">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                             <h2 className="text-3xl font-bold text-dark mb-8">Inspiration for your first order</h2>
                             <div className="flex gap-8 overflow-x-auto pb-8 scrollbar-hide snap-x">
-                                {categories.map(cat => (
-                                    <CategoryItem key={cat.id} name={cat.name} image={cat.image} />
+                                {inspirationItems.map((item, idx) => (
+                                    <Link key={idx} to={`/restaurant/${item.restaurantId}`} className="shrink-0 snap-start group">
+                                        <div className="w-40 md:w-48 text-center space-y-3">
+                                            <div className="w-32 h-32 md:w-40 md:h-40 mx-auto rounded-full overflow-hidden shadow-lg group-hover:scale-105 transition-transform duration-300 border-4 border-white">
+                                                <img 
+                                                    src={item.image || `https://source.unsplash.com/featured/300x300/?food,${item.name.toLowerCase()}`} 
+                                                    alt={item.name} 
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                            <p className="font-bold text-dark group-hover:text-primary transition-colors line-clamp-1">{item.name}</p>
+                                        </div>
+                                    </Link>
                                 ))}
+                                {inspirationItems.length === 0 && (
+                                    <div className="text-gray-400 italic">Finding some delicious ideas...</div>
+                                )}
                             </div>
                         </div>
                     </section>
@@ -318,7 +372,10 @@ const Home = () => {
                     {/* Popular Restaurants */}
                     <section className="py-16 bg-white">
                         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                            <h2 className="text-3xl font-bold text-dark mb-8">Top restaurants for you</h2>
+                            <div className="flex justify-between items-center mb-8">
+                                <h2 className="text-3xl font-bold text-dark">Top restaurants for you</h2>
+                                <Link to="/search" className="text-primary font-bold hover:underline">See all</Link>
+                            </div>
                             {loading ? (
                                 <div className="text-center py-12 text-gray-500 text-lg">Loading restaurants...</div>
                             ) : restaurants.length === 0 ? (
@@ -346,23 +403,7 @@ const Home = () => {
                         </div>
                     </section>
                 </>
-            ) : (
-                <section className="py-20 bg-section text-center">
-                    <div className="max-w-2xl mx-auto px-4">
-                        <div className="bg-white rounded-3xl p-12 shadow-sm border border-gray-100">
-                            <LayoutDashboard size={64} className="mx-auto text-primary mb-6 opacity-20" />
-                            <h2 className="text-3xl font-bold text-dark mb-4">{user.role.replace('_', ' ').toUpperCase()} Mode Active</h2>
-                            <p className="text-gray-500 mb-8 leading-relaxed">
-                                You are currently logged in as a {user.role.replace('_', ' ')}.
-                                Ordering and partner registration features are disabled for this account role.
-                            </p>
-                            <Link to={user.role === 'admin' ? '/admin/dashboard' : user.role === 'restaurant_partner' ? '/vendor/dashboard' : '/delivery/dashboard'}>
-                                <Button variant="outline" size="lg" className="rounded-xl">View Dashboard</Button>
-                            </Link>
-                        </div>
-                    </div>
-                </section>
-            )}
+            ) : null}
 
             {!isRestricted && <SurpriseMeButton />}
         </MainLayout>

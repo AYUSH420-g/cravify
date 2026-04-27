@@ -4,9 +4,11 @@ import MainLayout from '../layouts/MainLayout';
 import Button from '../components/Button';
 import { useAuth } from '../context/AuthContext';
 import { GoogleLogin } from '@react-oauth/google';
+import { Eye, EyeOff } from 'lucide-react';
 
 const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     
     // Captcha State
@@ -86,7 +88,7 @@ const Login = () => {
                     </div>
 
                     <div className="flex justify-center mt-4">
-                        {import.meta.env.VITE_GOOGLE_CLIENT_ID && import.meta.env.VITE_GOOGLE_CLIENT_ID !== 'replace_this_with_your_actual_google_client_id' ? (
+                        {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
                             <GoogleLogin 
                                 onSuccess={async (credentialResponse) => {
                                     const res = await googleLogin(credentialResponse.credential);
@@ -135,19 +137,26 @@ const Login = () => {
                                     onChange={handleChange}
                                 />
                             </div>
-                            <div>
+                            <div className="relative">
                                 <label htmlFor="password" className="sr-only">Password</label>
                                 <input
                                     id="password"
                                     name="password"
-                                    type="password"
+                                    type={showPassword ? 'text' : 'password'}
                                     autoComplete="current-password"
                                     required
-                                    className="appearance-none rounded-xl relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm"
+                                    className="appearance-none rounded-xl relative block w-full px-4 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-primary focus:border-primary focus:z-10 sm:text-sm pr-12"
                                     placeholder="Password"
                                     value={formData.password}
                                     onChange={handleChange}
                                 />
+                                <button
+                                    type="button"
+                                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-primary transition-colors"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                >
+                                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                </button>
                             </div>
 
                             {/* Captcha Block */}

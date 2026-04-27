@@ -30,6 +30,10 @@ const VendorDashboard = () => {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatText, setChatText] = useState('');
     const [unreadOrders, setUnreadOrders] = useState(new Set());
+    const [showEarningModal, setShowEarningModal] = useState(false);
+    const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+    const [recentReviews, setRecentReviews] = useState([]);
+    const [recentTransactions, setRecentTransactions] = useState([]);
     const messagesEndRef = useRef(null);
     const chatOrderRef = useRef(null);
 
@@ -43,6 +47,8 @@ const VendorDashboard = () => {
                 setRestaurant(data.restaurant);
                 setStats(data.stats);
                 setOrders(data.liveOrders);
+                setRecentReviews(data.recentReviews || []);
+                setRecentTransactions(data.recentTransactions || []);
             }
         } catch (e) {
             console.error(e);
@@ -189,6 +195,7 @@ const VendorDashboard = () => {
                     }
                     return prev.map(order => order._id === id ? { ...order, status: actionStatus } : order);
                 });
+                fetchDashboard(); // Trigger a full stats refresh immediately
             } else {
                 const errData = await res.json();
                 alert(`Error: ${errData.message || 'Failed to update'}`);
@@ -199,6 +206,114 @@ const VendorDashboard = () => {
             alert('Network error updating order');
         }
     };
+
+    const EarningDetailModal = () => (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div className="bg-green-600 p-8 text-white text-center relative">
+                    <button onClick={() => setShowEarningModal(false)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors">✕</button>
+                    <p className="text-green-100 text-sm font-bold uppercase tracking-widest mb-2">Today's Net Earning</p>
+                    <h2 className="text-5xl font-black italic">₹{stats.todayEarnings}</h2>
+                </div>
+                <div className="p-8">
+                    <h3 className="font-bold text-dark mb-6 flex items-center gap-2">
+                        <Clock size={18} className="text-primary" /> Today's Delivered Orders
+                    </h3>
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {recentTransactions.length === 0 ? (
+                            <p className="text-center py-8 text-gray-400 italic">No settled transactions for today yet.</p>
+                        ) : (
+                            <div className="space-y-4">
+                                {recentTransactions.map((tx, idx) => (
+                                    <div key={idx} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="font-bold text-dark text-sm">Order #{tx._id.slice(-6).toUpperCase()}</span>
+                                            <span className="text-[10px] text-gray-400">{new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-xs">
+                                                <span className="text-gray-500">Item Total</span>
+                                                <span className="text-dark">₹{tx.itemTotal}</span>
+                                            </div>
+                                            {tx.subsidy > 0 && (
+                                                <div className="flex justify-between text-xs text-red-500 font-medium">
+                                                    <span>Delivery Subsidy</span>
+                                                    <span>- ₹{tx.subsidy}</span>
+                                                </div>
+                                            )}
+                                            <div className="flex justify-between text-sm font-bold pt-1 border-t border-gray-200 mt-1">
+                                                <span className="text-gray-700">Net Earned</span>
+                                                <span className="text-green-600">₹{tx.net}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                <div className="p-4 bg-green-50 rounded-2xl border border-green-100 mt-6">
+                                    <p className="text-xs text-green-700 uppercase font-bold mb-3">Daily Summary</p>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-green-800">Total Item Sales</span>
+                                            <span className="font-bold text-green-900">₹{stats.todayItemTotal}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center text-sm text-red-600">
+                                            <span className="flex items-center gap-1 italic font-medium">Total Delivery Subsidies</span>
+                                            <span className="font-bold">- ₹{stats.todaySubsidy}</span>
+                                        </div>
+                                        <div className="h-px bg-green-200 my-2" />
+                                        <div className="flex justify-between items-center font-black text-xl">
+                                            <span className="text-green-900">Net Payout</span>
+                                            <span className="text-green-700">₹{stats.todayEarnings}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <Button variant="primary" className="w-full mt-8 py-4 rounded-2xl shadow-lg shadow-primary/20" onClick={() => setShowEarningModal(false)}>Got it</Button>
+                </div>
+            </div>
+        </div>
+    );
+
+    const FeedbackModal = () => (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div className="bg-purple-600 p-8 text-white text-center relative">
+                    <button onClick={() => setShowFeedbackModal(false)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors">✕</button>
+                    <p className="text-purple-100 text-sm font-bold uppercase tracking-widest mb-2">Customer Feedback</p>
+                    <div className="flex items-center justify-center gap-2">
+                        <Star size={32} className="fill-yellow-400 text-yellow-400" />
+                        <h2 className="text-5xl font-black italic">{restaurant?.rating || '0.0'}</h2>
+                    </div>
+                </div>
+                <div className="p-8">
+                    <h3 className="font-bold text-dark mb-6 flex items-center gap-2">
+                        <MessageCircle size={18} className="text-primary" /> Recent Reviews
+                    </h3>
+                    <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                        {recentReviews.length === 0 ? (
+                            <p className="text-center py-12 text-gray-400 italic">No ratings or reviews yet.</p>
+                        ) : (
+                            recentReviews.map((review, idx) => (
+                                <div key={idx} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <span className="font-bold text-dark text-sm">{review.user?.name || 'Anonymous'}</span>
+                                        <div className="flex items-center text-yellow-500 text-xs font-bold gap-0.5">
+                                            <Star size={12} className="fill-yellow-500" /> {review.restaurantRating}
+                                        </div>
+                                    </div>
+                                    <p className="text-sm text-gray-600 italic">"{review.ratingComment || 'No written feedback provided'}"</p>
+                                    <p className="text-[10px] text-gray-400 mt-2">{new Date(review.createdAt).toLocaleDateString()}</p>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                    <Button variant="primary" className="w-full mt-8 py-4 rounded-2xl" onClick={() => setShowFeedbackModal(false)}>Back to Dashboard</Button>
+                </div>
+            </div>
+        </div>
+    );
 
     if (loading) return <MainLayout><div className="flex justify-center py-20 text-xl font-bold">Loading Dashboard...</div></MainLayout>;
 
@@ -224,10 +339,14 @@ const VendorDashboard = () => {
 
                     {/* Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                        <StatCard title="Today's Earnings" value={`₹${stats.todayEarnings}`} icon={DollarSign} color="bg-green-500" />
+                        <div onClick={() => setShowEarningModal(true)} className="cursor-pointer hover:scale-[1.02] transition-transform duration-200 active:scale-[0.98]">
+                            <StatCard title="Today's Earnings" value={`₹${stats.todayEarnings}`} icon={DollarSign} color="bg-green-500" />
+                        </div>
                         <StatCard title="Live Orders" value={stats.totalLiveOrders} icon={ShoppingBag} color="bg-blue-500" />
                         <StatCard title="Menu Items" value={stats.menuItemsCount} icon={Star} color="bg-yellow-500" />
-                        <StatCard title="Avg Rating" value={restaurant?.rating || '0.0'} icon={Clock} color="bg-purple-500" />
+                        <div onClick={() => setShowFeedbackModal(true)} className="cursor-pointer hover:scale-[1.02] transition-transform duration-200 active:scale-[0.98]">
+                            <StatCard title="Avg Rating" value={restaurant?.rating || '0.0'} icon={Clock} color="bg-purple-500" />
+                        </div>
                     </div>
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -257,29 +376,55 @@ const VendorDashboard = () => {
                                                 <p className="text-gray-500 text-sm">
                                                     {order.items.map(item => `${item.quantity}x ${item.name}`).join(', ')}
                                                 </p>
+                                                {order.isFreeDelivery && (
+                                                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-black text-primary uppercase bg-red-50 w-fit px-2 py-0.5 rounded-full border border-red-100 italic">
+                                                        <DollarSign size={10} /> Delivery Sponsored by You
+                                                    </div>
+                                                )}
                                             </div>
-                                            <p className="font-bold text-lg text-primary">₹{order.totalAmount}</p>
+                                            <div className="text-right">
+                                                <p className="font-black text-xl text-dark italic">₹{order.itemTotal || order.totalAmount}</p>
+                                                {order.isFreeDelivery && (
+                                                    <p className="text-[10px] text-red-500 font-bold">- ₹{order.deliveryEarning} (rider fee)</p>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {order.status === 'Placed' ? (
-                                            <div className="flex gap-4">
-                                                <button
-                                                    onClick={() => {
-                                                        const reason = window.prompt('Please provide a reason for rejection:', 'Items out of stock');
-                                                        if (reason !== null) {
-                                                            handleOrderAction(order._id, 'Rejected', reason || 'Items out of stock');
-                                                        }
-                                                    }}
-                                                    className="flex-1 py-2 border border-red-500 text-red-500 rounded-xl font-bold hover:bg-red-50 transition-colors"
-                                                >
-                                                    Reject
-                                                </button>
-                                                <button
-                                                    onClick={() => handleOrderAction(order._id, 'Preparing')}
-                                                    className="flex-1 py-2 bg-green-500 text-white rounded-xl font-bold hover:bg-green-600 transition-colors shadow-lg shadow-green-200"
-                                                >
-                                                    Accept Order
-                                                </button>
+                                            <div className="space-y-4">
+                                                {order.isFreeDelivery && (
+                                                    <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-xs font-bold text-red-700 uppercase tracking-wider">Free Delivery Subsidy</span>
+                                                            <span className="text-sm font-black text-red-600">-₹{order.deliveryEarning || 0}</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-red-500 italic font-medium">As the order exceeds ₹500, the delivery charge will be deducted from your payout.</p>
+                                                        <div className="mt-2 pt-2 border-t border-red-100 flex justify-between items-center">
+                                                            <span className="text-sm font-bold text-dark">Estimated Net Payout:</span>
+                                                            <span className="text-lg font-black text-primary">₹{(order.itemTotal - (order.deliveryEarning || 0)).toFixed(0)}</span>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
+                                                <div className="flex gap-4">
+                                                    <button
+                                                        onClick={() => {
+                                                            const reason = window.prompt('Please provide a reason for rejection:', 'Items out of stock');
+                                                            if (reason !== null) {
+                                                                handleOrderAction(order._id, 'Rejected', reason || 'Items out of stock');
+                                                            }
+                                                        }}
+                                                        className="flex-1 py-3 border-2 border-red-500 text-red-500 rounded-2xl font-bold hover:bg-red-50 transition-all active:scale-95"
+                                                    >
+                                                        Reject Order
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOrderAction(order._id, 'Preparing')}
+                                                        className="flex-1 py-3 bg-green-500 text-white rounded-2xl font-bold hover:bg-green-600 transition-all shadow-lg shadow-green-200 active:scale-95 flex items-center justify-center gap-2"
+                                                    >
+                                                        <Check size={18} /> Accept Order
+                                                    </button>
+                                                </div>
                                             </div>
                                         ) : order.status === 'Preparing' ? (
                                             <div className="flex items-center justify-between bg-orange-50 p-3 rounded-xl border border-orange-100">
@@ -337,8 +482,8 @@ const VendorDashboard = () => {
                                     <Button variant="link" size="sm">Manage</Button>
                                 </Link>
                             </div>
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
-                                {restaurant?.menu?.slice(0, 5).map(item => (
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4 max-h-[350px] overflow-y-auto custom-scrollbar">
+                                {restaurant?.menu?.map(item => (
                                     <div key={item._id} className="flex items-center justify-between pb-4 border-b border-gray-100 last:border-0">
                                         <div className="flex items-center gap-2">
                                             <div className={`w-3 h-3 rounded-full ${item.isVeg ? 'bg-green-500' : 'bg-red-500'}`}></div>
@@ -350,17 +495,18 @@ const VendorDashboard = () => {
                                 {(!restaurant?.menu || restaurant.menu.length === 0) && (
                                     <div className="text-center text-sm text-gray-400 py-4">No menu items found. Add some to get started!</div>
                                 )}
-                                <div className="pt-2">
-                                    <Link to="/vendor/menu">
-                                        <Button variant="outline" className="w-full">Edit Menu</Button>
-                                    </Link>
-                                </div>
                             </div>
-
+                            <div className="mt-4 pt-2">
+                                <Link to="/vendor/menu">
+                                    <Button variant="outline" className="w-full">Edit Menu</Button>
+                                </Link>
+                            </div>
                         </div>
                     </div>
                 </div>
 
+                {showEarningModal && <EarningDetailModal />}
+                {showFeedbackModal && <FeedbackModal />}
             </div>
         </MainLayout>
     );

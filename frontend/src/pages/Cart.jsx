@@ -6,12 +6,7 @@ import { Link } from 'react-router-dom';
 import { ShoppingBag } from 'lucide-react';
 
 const Cart = () => {
-    const { cartItems, restaurant, updateQuantity, removeFromCart, cartTotal } = useCart();
-
-    const deliveryFee = cartItems.length > 0 ? 40 : 0;
-    const platformFee = cartItems.length > 0 ? 5 : 0;
-    const gst = Math.round(cartTotal * 0.05);
-    const totalToPay = cartTotal + deliveryFee + platformFee + gst;
+    const { cartItems, restaurant, updateQuantity, removeFromCart, cartTotal, platformFee } = useCart();
 
     if (cartItems.length === 0) {
         return (
@@ -44,6 +39,7 @@ const Cart = () => {
                                     <img src={restaurant.image || 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&w=100&q=80'} className="w-16 h-16 rounded-lg object-cover" alt={restaurant.name} />
                                     <div>
                                         <h3 className="font-bold text-lg">{restaurant.name}</h3>
+                                        <p className="text-xs text-gray-400">Ordering from {restaurant.address}</p>
                                     </div>
                                 </div>
                             )}
@@ -72,56 +68,45 @@ const Cart = () => {
                                     </div>
                                 ))}
                             </div>
-
-                            {/* Delivery Instructions */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                <h3 className="font-bold mb-4">Delivery Instructions</h3>
-                                <div className="flex gap-4 overflow-x-auto pb-2">
-                                    <button className="px-4 py-2 border border-gray-200 rounded-xl hover:border-primary hover:text-primary transition-colors text-sm shrink-0">Avoid calling</button>
-                                    <button className="px-4 py-2 border border-gray-200 rounded-xl hover:border-primary hover:text-primary transition-colors text-sm shrink-0">Leave at door</button>
-                                    <button className="px-4 py-2 border border-gray-200 rounded-xl hover:border-primary hover:text-primary transition-colors text-sm shrink-0">Directions to reach</button>
-                                </div>
-                            </div>
                         </div>
 
                         {/* Right: Bill */}
                         <div className="md:col-span-1">
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sticky top-24">
-                                <h3 className="font-bold text-lg mb-6">Bill Details</h3>
+                            {(() => {
+                                const totalToPay = cartTotal + platformFee;
 
-                                <div className="space-y-3 pb-6 border-b border-gray-100">
-                                    <div className="flex justify-between text-gray-500 text-sm">
-                                        <span>Item Total</span>
-                                        <span>₹{cartTotal.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-gray-500 text-sm">
-                                        <span>Delivery Fee</span>
-                                        <span>₹{deliveryFee.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-gray-500 text-sm">
-                                        <span>Platform Fee</span>
-                                        <span>₹{platformFee.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex justify-between text-gray-500 text-sm">
-                                        <span>GST and Restaurant Charges</span>
-                                        <span>₹{gst.toFixed(2)}</span>
-                                    </div>
-                                </div>
+                                return (
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sticky top-24">
+                                        <h3 className="font-bold text-lg mb-6">Bill Details</h3>
 
-                                <div className="flex justify-between font-bold text-xl py-6">
-                                    <span>To Pay</span>
-                                    <span>₹{totalToPay.toFixed(2)}</span>
-                                </div>
+                                        <div className="space-y-3 pb-6 border-b border-gray-100">
+                                            <div className="flex justify-between text-gray-500 text-sm">
+                                                <span>Item Total</span>
+                                                <span>₹{cartTotal.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex justify-between text-gray-500 text-sm">
+                                                <span>Platform Fee</span>
+                                                <span>₹{platformFee.toFixed(2)}</span>
+                                            </div>
+                                        </div>
 
-                                <Link to="/checkout" className="block w-full">
-                                    <Button variant="primary" size="lg" className="w-full">Proceed to Pay</Button>
-                                </Link>
+                                        <div className="flex justify-between font-black text-xl py-6 italic text-dark">
+                                            <span>Subtotal</span>
+                                            <span>₹{totalToPay.toFixed(2)}</span>
+                                        </div>
 
-                                <div className="mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                                    <h4 className="font-bold text-sm mb-1">Review your order and address details to avoid cancellations</h4>
-                                    <p className="text-xs text-red-500">Note: If you cancel within 60 seconds of placing your order, a 100% refund will be issued. No refund for cancellations made after 60 seconds.</p>
-                                </div>
-                            </div>
+                                        <div className="mb-6 p-3 bg-blue-50 rounded-xl border border-blue-100">
+                                            <p className="text-[10px] text-blue-700 font-bold leading-relaxed uppercase tracking-tighter">
+                                                💡 Delivery fee, GST, and special offers will be calculated at the checkout page.
+                                            </p>
+                                        </div>
+
+                                        <Link to="/checkout" className="block w-full">
+                                            <Button variant="primary" size="lg" className="w-full rounded-xl py-4 shadow-lg shadow-primary/20">Proceed to Checkout</Button>
+                                        </Link>
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 </div>

@@ -1,7 +1,9 @@
 const Restaurant = require('../models/Restaurant');
+const Settings = require('../models/Settings');
 const Order = require('../models/Order');
 const User = require('../models/User');
-const { validatePincode, haversineDistance, calculateDeliveryFee, calculateDeliveryEarning } = require('../utils/pincode');
+const WalletTransaction = require('../models/WalletTransaction');
+const { validatePincode, haversineDistance, calculateDeliveryFee, calculateDeliveryEarning, getRoadDistance } = require('../utils/pincode');
 
 // Available offers (could be moved to DB/Settings later)
 const AVAILABLE_OFFERS = [
@@ -52,28 +54,32 @@ exports.getOffers = (req, res) => {
 // Calculate delivery fee preview (before placing order)
 exports.calculateFees = async (req, res) => {
     try {
-        const { restaurantId, deliveryPincode, itemTotal, offerCode, paymentMethod } = req.body;
+        const { restaurantId, deliveryPincode, itemTotal, offerCode, paymentMethod, deliveryLocation } = req.body;
 
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) {
             return res.status(404).json({ message: 'Restaurant not found' });
         }
 
-        const restPincode = restaurant.pincode || '';
-        let distanceKm = 5; // default
-
-        // Calculate distance between pincodes
-        if (deliveryPincode && restPincode) {
-            const restPin = await validatePincode(restPincode);
+        // Calculate ACTUAL road distance using coordinates if available
+        let distanceKm = 5;
+        if (deliveryLocation?.lat && restaurant.location?.lat) {
+            distanceKm = await getRoadDistance(restaurant.location.lat, restaurant.location.lng, deliveryLocation.lat, deliveryLocation.lng);
+        } else if (deliveryPincode && restaurant.pincode) {
+            const restPin = await validatePincode(restaurant.pincode);
             const custPin = await validatePincode(deliveryPincode);
             if (restPin?.lat && custPin?.lat) {
-                distanceKm = haversineDistance(restPin.lat, restPin.lng, custPin.lat, custPin.lng);
+                distanceKm = await getRoadDistance(restPin.lat, restPin.lng, custPin.lat, custPin.lng);
             }
         }
 
+        const Settings = require('../models/Settings');
+        const settings = await Settings.getInstance();
+
         let deliveryFee = calculateDeliveryFee(distanceKm, itemTotal || 0);
-        const platformFee = 5;
-        const gst = Math.round((itemTotal || 0) * 0.05);
+        const platformFee = settings.platformFee ?? 5;
+        // GST is 18% of (Item Total + Platform Fee + Delivery Fee)
+        const gst = Math.round(((itemTotal || 0) + deliveryFee + platformFee) * 0.18);
         let offerDiscount = 0;
         let appliedOffer = null;
 
@@ -105,14 +111,22 @@ exports.calculateFees = async (req, res) => {
             } else if (offer.type === 'cashback') {
                 offerDiscount = offer.cashback;
             }
+            
+            // Enforce ₹200 maximum promo discount cap
+            if (offerDiscount > 200) offerDiscount = 200;
+
             appliedOffer = offer;
         }
 
-        // Auto-apply free delivery if eligible and no manual offer
-        if (!offerCode && (itemTotal || 0) >= 500) {
-            offerDiscount = deliveryFee;
+        // Auto-apply free delivery if eligible (regardless of manual offer)
+        if ((itemTotal || 0) >= 500) {
+            // If there's already a discount from a promo, we still make delivery 0
+            // but we don't necessarily need to overwrite appliedOffer unless it's null
+            offerDiscount += deliveryFee; // Add delivery fee to total discount
             deliveryFee = 0;
-            appliedOffer = AVAILABLE_OFFERS.find(o => o.code === 'FREE_DELIVERY');
+            if (!appliedOffer) {
+                appliedOffer = AVAILABLE_OFFERS.find(o => o.code === 'FREE_DELIVERY');
+            }
         }
 
         const total = Math.max(0, (itemTotal || 0) + deliveryFee + platformFee + gst - offerDiscount);
@@ -142,7 +156,7 @@ exports.calculateFees = async (req, res) => {
 exports.getRestaurants = async (req, res) => {
     try {
         const restaurants = await Restaurant.find({ isOnline: true })
-            .select('name image cuisines rating deliveryTime address isOnline pincode')
+            .select('name image cuisines rating deliveryTime address isOnline pincode menu')
             .lean();
         res.json(restaurants);
     } catch (err) {
@@ -154,7 +168,9 @@ exports.getRestaurants = async (req, res) => {
 // Get a single restaurant by ID with its full menu
 exports.getRestaurantById = async (req, res) => {
     try {
-        const restaurant = await Restaurant.findById(req.params.id).lean();
+        const restaurant = await Restaurant.findById(req.params.id)
+            .populate('vendor', 'name email phone restaurantDetails')
+            .lean();
         if (!restaurant) {
             return res.status(404).json({ message: 'Restaurant not found' });
         }
@@ -213,7 +229,8 @@ exports.placeOrder = async (req, res) => {
             loyaltyPointsToRedeem, 
             offerCode,
             noCutlery,
-            tipAmount
+            tipAmount,
+            deliveryInstructions
         } = req.body;
 
         if (!restaurantId || !items || items.length === 0) {
@@ -227,26 +244,35 @@ exports.placeOrder = async (req, res) => {
 
         const itemTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         
-        // Calculate distance from pincodes
+        // Calculate ACTUAL road distance using coordinates if available
+        let distanceKm = 5;
         const restPincode = restaurant.pincode || '';
         const deliveryPincode = deliveryAddress?.zip || '';
-        let distanceKm = 5; // default
 
-        if (deliveryPincode && restPincode) {
-            try {
-                const restPin = await validatePincode(restPincode);
-                const custPin = await validatePincode(deliveryPincode);
-                if (restPin?.lat && custPin?.lat) {
-                    distanceKm = haversineDistance(restPin.lat, restPin.lng, custPin.lat, custPin.lng);
+        try {
+            if (deliveryLocation?.lat && restaurant.location?.lat) {
+                distanceKm = await getRoadDistance(restaurant.location.lat, restaurant.location.lng, deliveryLocation.lat, deliveryLocation.lng);
+            } else {
+                if (deliveryPincode && restPincode) {
+                    const restPin = await validatePincode(restPincode);
+                    const custPin = await validatePincode(deliveryPincode);
+                    if (restPin?.lat && custPin?.lat) {
+                        distanceKm = await getRoadDistance(restPin.lat, restPin.lng, custPin.lat, custPin.lng);
+                    }
                 }
-            } catch (e) {
-                console.error('Distance calculation failed, using default:', e.message);
             }
+        } catch (distErr) {
+            console.error('Distance calculation failed, using fallback:', distErr.message);
+            distanceKm = 5; // Safe fallback
         }
 
+        const Settings = require('../models/Settings');
+        const settings = await Settings.getInstance();
+
         let deliveryFee = calculateDeliveryFee(distanceKm, itemTotal);
-        const platformFee = 5;
-        const gst = Math.round(itemTotal * 0.05);
+        const platformFee = settings.platformFee ?? 5;
+        // GST is 18% of (Item Total + Platform Fee + Delivery Fee)
+        const gst = Math.round((itemTotal + deliveryFee + platformFee) * 0.18);
         let offerDiscount = 0;
         let appliedOfferCode = '';
 
@@ -278,14 +304,18 @@ exports.placeOrder = async (req, res) => {
             } else if (offer.type === 'cashback') {
                 offerDiscount = offer.cashback;
             }
+
+            // Enforce ₹200 maximum promo discount cap
+            if (offerDiscount > 200) offerDiscount = 200;
+
             appliedOfferCode = offer.code;
         }
 
-        // Auto-apply free delivery if no manual offer and order qualifies
-        if (!offerCode && itemTotal >= 500) {
-            offerDiscount = deliveryFee;
+        // Auto-apply free delivery if order qualifies (always applies for > 500)
+        if (itemTotal >= 500) {
+            offerDiscount += deliveryFee;
             deliveryFee = 0;
-            appliedOfferCode = 'FREE_DELIVERY';
+            if (!appliedOfferCode) appliedOfferCode = 'FREE_DELIVERY';
         }
 
         let totalAmount = itemTotal + deliveryFee + platformFee + gst - offerDiscount + (Number(tipAmount) || 0);
@@ -344,12 +374,14 @@ exports.placeOrder = async (req, res) => {
                 : undefined,
             paymentMethod: paymentMethod || 'COD',
             paymentStatus: paymentMethod === 'Wallet' ? 'Paid' : (paymentMethod === 'COD' ? 'COD' : 'Pending'),
+            status: 'Placed',
             loyaltyPointsUsed: pointsUsed,
             loyaltyPointsEarned: pointsEarned,
             deliveryEarning,
-            status: 'Placed',
+            distanceKm,
             noCutlery: !!noCutlery,
-            tipAmount: Number(tipAmount) || 0
+            tipAmount: tipAmount || 0,
+            deliveryInstructions
         });
 
         // Handle Wallet Payment Deduction
@@ -596,8 +628,6 @@ exports.submitOrderRating = async (req, res) => {
     }
 };
 
-const WalletTransaction = require('../models/WalletTransaction');
-
 // Wallet Top-Up Logic
 exports.topUpWallet = async (req, res) => {
     try {
@@ -645,3 +675,16 @@ exports.getWalletHistory = async (req, res) => {
     }
 };
 
+// Get Public Platform Settings (Platform Fee, etc.)
+exports.getPublicSettings = async (req, res) => {
+    try {
+        const settings = await Settings.getInstance();
+        res.json({
+            platformFee: settings.platformFee,
+            referralBonus: settings.referralBonus,
+            maintenanceMode: settings.maintenanceMode
+        });
+    } catch (err) {
+        res.status(500).json({ message: 'Server error fetching settings' });
+    }
+};

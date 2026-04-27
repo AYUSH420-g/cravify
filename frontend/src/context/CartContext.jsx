@@ -10,13 +10,42 @@ export const CartProvider = ({ children }) => {
         return localData ? JSON.parse(localData) : [];
     });
 
+    const [platformFee, setPlatformFee] = useState(5);
+
     const [restaurant, setRestaurant] = useState(() => {
         const localRes = localStorage.getItem('cartRestaurant');
         return localRes ? JSON.parse(localRes) : null;
     });
 
     useEffect(() => {
-        localStorage.setItem('cartItems', JSON.stringify(cartItems));
+        const fetchSettings = async () => {
+            try {
+                const res = await fetch('/api/customer/settings');
+                const data = await res.json();
+                if (res.ok && data.platformFee !== undefined) {
+                    setPlatformFee(data.platformFee);
+                }
+            } catch (e) {
+                console.error('Failed to fetch platform settings:', e);
+            }
+        };
+        fetchSettings();
+    }, []);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (!token && cartItems.length > 0) {
+            setCartItems([]);
+            setRestaurant(null);
+        }
+    }, [cartItems.length]);
+
+    useEffect(() => {
+        if (cartItems.length > 0) {
+            localStorage.setItem('cartItems', JSON.stringify(cartItems));
+        } else {
+            localStorage.removeItem('cartItems');
+        }
     }, [cartItems]);
 
     useEffect(() => {
@@ -101,7 +130,8 @@ export const CartProvider = ({ children }) => {
             clearCart,
             cartTotal,
             cartCount,
-            restaurant
+            restaurant,
+            platformFee
         }}>
             {children}
         </CartContext.Provider>

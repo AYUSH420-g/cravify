@@ -1,21 +1,41 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, Link } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import { Search, Ban, CheckCircle, Clock, ExternalLink, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import Button from '../components/Button';
 
 const AdminUsers = () => {
+    const { token, user } = useAuth();
+    const location = useLocation();
     const [allUsers, setAllUsers] = useState([]);
-    const [activeTab, setActiveTab] = useState('pending'); 
-    // Tabs: 'pending', 'customers', 'restaurants', 'riders'
-    const { user, token, loading } = useAuth();
-    const [searchQuery, setSearchQuery] = useState('');
     const [selectedUser, setSelectedUser] = useState(null);
     const [authError, setAuthError] = useState(false);
+    const [activeTab, setActiveTab] = useState('pending');
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const [hideTabs, setHideTabs] = useState(false);
+    const [pendingRoleFilter, setPendingRoleFilter] = useState(null);
 
     useEffect(() => {
+        // Read params from URL: /admin/users?tab=restaurants&hideTabs=true
+        const params = new URLSearchParams(location.search);
+        const tabParam = params.get('tab');
+        const hideParam = params.get('hideTabs');
+        const roleParam = params.get('role');
+
+        if (tabParam && ['pending', 'customers', 'restaurants', 'riders'].includes(tabParam)) {
+            setActiveTab(tabParam);
+        } else {
+            setActiveTab('pending');
+        }
+
+        setHideTabs(hideParam === 'true');
+        setPendingRoleFilter(roleParam);
+        
         if (token && user?.role === 'admin') fetchUsers();
         if (user && user.role !== 'admin') setAuthError(true);
-    }, [token, user]);
+    }, [token, user, location.search]);
 
     const fetchUsers = async () => {
         try {
@@ -48,7 +68,7 @@ const AdminUsers = () => {
 
     const rejectUser = async (id, e) => {
         e.stopPropagation();
-        if (!window.confirm("Reject and delete this partner request?")) return;
+        if (!window.confirm("Are you sure you want to PERMANENTLY delete this partner and all associated data? This cannot be undone.")) return;
         try {
             const res = await fetch(`/api/admin/reject/${id}`, { 
                 method: 'DELETE', 
@@ -64,7 +84,13 @@ const AdminUsers = () => {
     };
 
     // Categorization Logic
-    const pendingData = allUsers.filter(u => !u.isVerified && u.role !== 'customer' && u.role !== 'admin');
+    const pendingData = allUsers.filter(u => {
+        const isPartner = !u.isVerified && u.role !== 'customer' && u.role !== 'admin';
+        if (!isPartner) return false;
+        if (pendingRoleFilter === 'restaurant') return u.role === 'restaurant_partner';
+        if (pendingRoleFilter === 'rider') return u.role === 'delivery_partner';
+        return true;
+    });
     const customersData = allUsers.filter(u => u.role === 'customer');
     const restaurantsData = allUsers.filter(u => u.role === 'restaurant_partner' && u.isVerified);
     const ridersData = allUsers.filter(u => u.role === 'delivery_partner' && u.isVerified);
@@ -149,7 +175,15 @@ const AdminUsers = () => {
         <MainLayout>
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-                    <h1 className="text-3xl font-bold text-dark">User Management</h1>
+                    <h1 className="text-3xl font-bold text-dark">
+                        {hideTabs ? (
+                            activeTab === 'customers' ? 'User Management' :
+                            activeTab === 'restaurants' ? 'Approved Restaurants' :
+                            activeTab === 'riders' ? 'Delivery Fleet' :
+                            activeTab === 'pending' ? (pendingRoleFilter === 'restaurant' ? 'Restaurant Applications' : 'Rider Applications') :
+                            'User Management'
+                        ) : 'User Management'}
+                    </h1>
 
                     <div className="relative w-full md:w-auto">
                         <input
@@ -164,35 +198,37 @@ const AdminUsers = () => {
                 </div>
 
                 {/* Advanced Categorization Tabs */}
-                <div className="flex flex-wrap gap-6 mb-6 border-b border-gray-200">
-                    <button 
-                        onClick={() => setActiveTab('pending')}
-                        className={`pb-3 font-medium flex items-center gap-2 transition-colors ${activeTab === 'pending' ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Pending Approvals
-                        {pendingData.length > 0 && (
-                            <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingData.length}</span>
-                        )}
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('restaurants')}
-                        className={`pb-3 font-medium transition-colors ${activeTab === 'restaurants' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Restaurants ({restaurantsData.length})
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('riders')}
-                        className={`pb-3 font-medium transition-colors ${activeTab === 'riders' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Delivery Fleet ({ridersData.length})
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('customers')}
-                        className={`pb-3 font-medium transition-colors ${activeTab === 'customers' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Customers ({customersData.length})
-                    </button>
-                </div>
+                {!hideTabs && (
+                    <div className="flex flex-wrap gap-6 mb-6 border-b border-gray-200">
+                        <button 
+                            onClick={() => setActiveTab('pending')}
+                            className={`pb-3 font-medium flex items-center gap-2 transition-colors ${activeTab === 'pending' ? 'text-orange-500 border-b-2 border-orange-500' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Pending Approvals
+                            {pendingData.length > 0 && (
+                                <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingData.length}</span>
+                            )}
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('restaurants')}
+                            className={`pb-3 font-medium transition-colors ${activeTab === 'restaurants' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Restaurants ({restaurantsData.length})
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('riders')}
+                            className={`pb-3 font-medium transition-colors ${activeTab === 'riders' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Delivery Fleet ({ridersData.length})
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('customers')}
+                            className={`pb-3 font-medium transition-colors ${activeTab === 'customers' ? 'text-green-600 border-b-2 border-green-600' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Customers ({customersData.length})
+                        </button>
+                    </div>
+                )}
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                     <table className="w-full text-left">
@@ -256,13 +292,42 @@ const AdminUsers = () => {
                                                 >
                                                     <CheckCircle size={18} />
                                                 </button>
+                                                <button
+                                                    onClick={(e) => rejectUser(user._id, e)}
+                                                    className="p-2 rounded-lg transition-colors text-red-600 bg-red-50 hover:bg-red-100"
+                                                    title="Reject & Delete"
+                                                >
+                                                    <X size={18} />
+                                                </button>
                                             </div>
                                         ) : (
-                                            <button
-                                                className="px-4 py-2 rounded-xl text-sm bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition"
-                                            >
-                                                View Profile
-                                            </button>
+                                            <div className="flex gap-2">
+                                                {activeTab === 'restaurants' && user.restaurantId && (
+                                                    <Link
+                                                        to={`/admin/restaurants/${user.restaurantId}`}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="px-4 py-2 rounded-xl text-sm bg-orange-50 hover:bg-orange-100 font-bold text-orange-600 transition"
+                                                    >
+                                                        Restaurant View
+                                                    </Link>
+                                                )}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedUser(user);
+                                                    }}
+                                                    className="px-4 py-2 rounded-xl text-sm bg-gray-100 hover:bg-gray-200 font-bold text-gray-700 transition"
+                                                >
+                                                    View Profile
+                                                </button>
+                                                <button
+                                                    onClick={(e) => rejectUser(user._id, e)}
+                                                    className="p-2 rounded-lg transition-colors text-red-600 bg-red-50 hover:bg-red-100"
+                                                    title={user.role === 'customer' ? 'Delete User' : 'Delete Partner'}
+                                                >
+                                                    <X size={18} />
+                                                </button>
+                                            </div>
                                         )}
                                     </td>
                                 </tr>

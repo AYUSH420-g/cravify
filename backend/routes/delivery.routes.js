@@ -33,4 +33,7 @@ router.put('/online-status', deliveryController.toggleOnlineStatus);
 // Get completion history and earnings
 router.get('/history', deliveryController.getHistoryAndEarnings);
 
+// Get ratings and feedback
+router.get('/ratings', deliveryController.getRatingsFeedback);
+
 module.exports = router;

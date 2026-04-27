@@ -92,45 +92,73 @@ function toRad(deg) {
 }
 
 /**
- * Calculate delivery fee based on distance and order value.
- * Base fee: ₹20, per-km rate: ₹5/km after first 3km, minimum ₹25, maximum ₹120
- * Free delivery for orders above ₹500.
+ * Calculate ACTUAL road distance between two points using OSRM.
+ * Falls back to haversine if API fails.
  */
-function calculateDeliveryFee(distanceKm, orderValue) {
-    // Free delivery for orders above ₹500
-    if (orderValue >= 500) return 0;
-
-    const baseFee = 20;
-    const freeKm = 3;
-    const perKmRate = 5;
-
-    let fee = baseFee;
-    if (distanceKm > freeKm) {
-        fee += Math.ceil(distanceKm - freeKm) * perKmRate;
+async function getRoadDistance(lat1, lng1, lat2, lng2) {
+    try {
+        const response = await fetch(
+            `http://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false`,
+            { signal: AbortSignal.timeout(3000) }
+        );
+        const data = await response.json();
+        
+        if (data.code === 'Ok' && data.routes && data.routes[0]) {
+            // distance is in meters, convert to km
+            return Number((data.routes[0].distance / 1000).toFixed(1));
+        }
+        
+        // Fallback to haversine if OSRM is down
+        return Number(haversineDistance(lat1, lng1, lat2, lng2).toFixed(1));
+    } catch (err) {
+        console.warn('OSRM distance calculation failed, using haversine fallback:', err.message);
+        return Number(haversineDistance(lat1, lng1, lat2, lng2).toFixed(1));
     }
-
-    // Clamp between ₹25 and ₹120
-    return Math.max(25, Math.min(120, Math.round(fee)));
 }
 
 /**
- * Calculate delivery partner earnings based on distance and order value.
- * Base: ₹25, per-km bonus: ₹3/km, order value bonus: 2% of order, min ₹30, max ₹150
+ * Calculate delivery fee based on distance and order value.
+ * Minimum ₹25, maximum ₹120. Free delivery for orders above ₹500.
+ */
+function calculateDeliveryFee(distanceKm, orderValue) {
+    if (orderValue >= 500) return 0;
+
+    // Standard distance-based pricing for customer
+    let fee = 25;
+    if (distanceKm > 3) {
+        fee += Math.ceil(distanceKm - 3) * 10;
+    }
+    return Math.max(25, Math.min(150, fee));
+}
+
+/**
+ * Calculate delivery partner earnings based on distance.
+ * 0–3 km = ₹25
+ * 3–6 km = ₹40
+ * 6+ km = ₹40 + ₹7 per extra km
  */
 function calculateDeliveryEarning(distanceKm, orderValue) {
-    const base = 25;
-    const perKmBonus = 3;
-    const orderBonus = Math.round(orderValue * 0.02); // 2% of order value
+    let earning = 25;
+    if (distanceKm <= 3) {
+        earning = 25;
+    } else if (distanceKm <= 6) {
+        earning = 40;
+    } else {
+        earning = 40 + Math.ceil(distanceKm - 6) * 7;
+    }
 
-    let earning = base + Math.round(distanceKm * perKmBonus) + orderBonus;
+    // Add 1% of order value as a small bonus if > 0
+    if (orderValue > 0) {
+        earning += Math.round(orderValue * 0.01);
+    }
 
-    // Clamp between ₹30 and ₹150
-    return Math.max(30, Math.min(150, earning));
+    return Math.max(25, Math.min(250, earning));
 }
 
 module.exports = {
     validatePincode,
     haversineDistance,
+    getRoadDistance,
     calculateDeliveryFee,
     calculateDeliveryEarning
 };

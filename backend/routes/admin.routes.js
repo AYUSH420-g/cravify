@@ -13,23 +13,50 @@ const adminController = require('../controllers/adminController');
 router.get('/stats', authMiddleware, roleAuth('admin'), async (req, res) => {
     try {
         const userCount = await User.countDocuments({ role: 'customer' });
-        const partnerCount = await User.countDocuments({ role: 'restaurant_partner' });
-        const deliveryCount = await User.countDocuments({ role: 'delivery_partner' });
+        const partnerCount = await User.countDocuments({ role: 'restaurant_partner', isVerified: true });
+        const deliveryCount = await User.countDocuments({ role: 'delivery_partner', isVerified: true });
         const orderCount = await Order.countDocuments();
+        
+        // Count unapproved for quick action indicators (optional but good for future)
+        const unapprovedRestaurants = await User.countDocuments({ role: 'restaurant_partner', isVerified: false });
+        const unapprovedRiders = await User.countDocuments({ role: 'delivery_partner', isVerified: false });
 
-        // Sum revenue from delivered orders
-        const revenueResult = await Order.aggregate([
+        // Calculate detailed revenue from delivered orders
+        const revenueStats = await Order.aggregate([
             { $match: { status: 'Delivered' } },
-            { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+            { 
+                $group: { 
+                    _id: null, 
+                    totalPlatformFees: { $sum: '$platformFee' },
+                    totalGST: { $sum: '$gst' },
+                    totalDiscounts: { $sum: '$offerDiscount' },
+                    totalAmount: { $sum: '$totalAmount' }
+                } 
+            }
         ]);
-        const revenue = revenueResult.length > 0 ? revenueResult[0].total : 0;
+
+        const stats = revenueStats.length > 0 ? revenueStats[0] : {
+            totalPlatformFees: 0,
+            totalGST: 0,
+            totalDiscounts: 0,
+            totalAmount: 0
+        };
+
+        // Revenue for the platform = Platform Fees + GST - (Discounts if covered by platform)
+        // User said: "Total Revenue = Platform Fees + GST - Discounts"
+        const netRevenue = stats.totalPlatformFees + stats.totalGST - stats.totalDiscounts;
 
         res.json({
             users: userCount,
             restaurants: partnerCount,
             riders: deliveryCount,
             orders: orderCount,
-            revenue
+            revenue: netRevenue,
+            breakdown: {
+                platformFees: stats.totalPlatformFees,
+                gst: stats.totalGST,
+                discounts: stats.totalDiscounts
+            }
         });
     } catch (err) {
         console.error(err.message);
@@ -42,8 +69,19 @@ router.get('/stats', authMiddleware, roleAuth('admin'), async (req, res) => {
 // @access  Admin
 router.get('/users', authMiddleware, roleAuth('admin'), async (req, res) => {
     try {
-        const users = await User.find().select('-password');
-        res.json(users);
+        const users = await User.find().select('-password').lean();
+        const restaurants = await Restaurant.find().select('vendor').lean();
+        
+        // Map restaurant ID to each user if they are a restaurant partner
+        const usersWithRest = users.map(user => {
+            if (user.role === 'restaurant_partner') {
+                const rest = restaurants.find(r => r.vendor.toString() === user._id.toString());
+                return { ...user, restaurantId: rest ? rest._id : null };
+            }
+            return user;
+        });
+
+        res.json(usersWithRest);
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Server error');

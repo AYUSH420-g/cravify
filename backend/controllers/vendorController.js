@@ -38,7 +38,7 @@ exports.getDashboardData = async (req, res) => {
         // Fetch active orders (not delivered and not cancelled)
         const liveOrders = await Order.find({
             restaurant: restaurant._id,
-            status: { $nin: ['Delivered', 'Cancelled'] }
+            status: { $nin: ['Delivered', 'Cancelled', 'Rejected'] }
         }).populate('user', 'name phone').sort({ createdAt: -1 });
 
         // Compile some basic stats
@@ -51,16 +51,55 @@ exports.getDashboardData = async (req, res) => {
             status: 'Delivered'
         });
 
-        const todayEarnings = todaysOrders.reduce((sum, order) => sum + order.totalAmount, 0);
+        // Net Earnings = Item Total - (Rider Earning if Free Delivery)
+        // Free delivery is when offerCode is 'FREE_DELIVERY' or itemTotal >= 500
+        let todayItemTotal = 0;
+        let todaySubsidy = 0;
+
+        const recentTransactions = todaysOrders.map(order => {
+            const isFreeDelivery = order.offerCode === 'FREE_DELIVERY' || order.itemTotal >= 500;
+            const subsidy = isFreeDelivery ? (order.deliveryEarning || 0) : 0;
+            const net = order.itemTotal - subsidy;
+            
+            todayItemTotal += order.itemTotal;
+            todaySubsidy += subsidy;
+
+            return {
+                _id: order._id,
+                itemTotal: order.itemTotal,
+                subsidy,
+                net,
+                createdAt: order.createdAt
+            };
+        });
+
+        const recentReviews = await Order.find({
+            restaurant: restaurant._id,
+            $or: [
+                { restaurantRating: { $exists: true } },
+                { ratingComment: { $exists: true } }
+            ]
+        })
+        .populate('user', 'name')
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean();
 
         res.json({
             restaurant,
             stats: {
-                todayEarnings,
+                todayEarnings: Math.round(todayItemTotal - todaySubsidy),
+                todayItemTotal: Math.round(todayItemTotal),
+                todaySubsidy: Math.round(todaySubsidy),
                 totalLiveOrders: liveOrders.length,
                 menuItemsCount: restaurant.menu.length
             },
-            liveOrders
+            liveOrders: liveOrders.map(o => ({
+                ...o.toObject(),
+                isFreeDelivery: o.offerCode === 'FREE_DELIVERY' || o.itemTotal >= 500
+            })),
+            recentTransactions,
+            recentReviews
         });
     } catch (err) {
         console.error("Dashboard error:", err.message);

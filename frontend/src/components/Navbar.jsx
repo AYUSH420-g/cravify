@@ -5,7 +5,10 @@ import Button from './Button';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 
+import { useTheme } from '../context/ThemeContext';
+
 const Navbar = () => {
+    const { isDarkMode } = useTheme();
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [navSearch, setNavSearch] = useState('');
     const { cartCount } = useCart();
@@ -27,58 +30,38 @@ const Navbar = () => {
     };
 
     return (
-        <nav className="sticky top-0 z-50 bg-white shadow-sm border-b border-gray-100">
+        <nav className="sticky top-0 z-50 bg-white border-b border-gray-100 transition-colors duration-300">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4 md:gap-8">
-                {/* Logo & Location */}
+
+                {/* Logo */}
                 <div className="flex items-center gap-4 md:gap-8 min-w-fit">
                     <Link to="/" className="text-2xl md:text-3xl font-bold text-primary tracking-tight">Cravify</Link>
-
-                    {(!user || user.role === 'customer') && (
-                        <div className="hidden md:flex items-center gap-2 text-dark hover:text-primary cursor-pointer transition-colors group text-sm max-w-[200px] truncate">
-                            <MapPin size={18} className="group-hover:text-primary shrink-0" />
-                            <span className="font-medium truncate">Gujarat, India</span>
-                            <ChevronDown size={14} className="shrink-0" />
-                        </div>
-                    )}
                 </div>
 
-                {/* Desktop Search Bar */}
-                {(!user || user.role === 'customer') && (
-                    <div className="flex-1 max-w-xl hidden md:block">
-                        <div className="relative group">
-                            <input
-                                type="text"
-                                placeholder="Search for restaurants, cuisine or a dish..."
-                                className="w-full bg-gray-100 text-dark placeholder:text-muted px-4 py-3 pl-12 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:bg-white transition-all border border-transparent focus:border-primary/20 text-sm"
-                                value={navSearch}
-                                onChange={e => setNavSearch(e.target.value)}
-                                onKeyDown={handleNavSearch}
-                            />
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted group-focus-within:text-primary transition-colors" size={18} />
-                        </div>
-                    </div>
-                )}
-
-                {/* Desktop Right Actions */}
                 <div className="hidden md:flex items-center gap-8">
-                    {(!user || user.role === 'customer') && (
-                        <div className="flex items-center gap-6 text-dark font-medium text-sm">
+                    <div className={`flex items-center gap-6 font-medium text-sm ${isDarkMode ? 'text-gray-300' : 'text-dark'}`}>
+                        {(!user || user.role === 'customer') && (
                             <Link to="/search" className="hover:text-primary transition-colors flex items-center gap-2">
                                 <Search size={18} />
                                 <span>Search</span>
                             </Link>
-                            <Link to="/offers" className="hover:text-primary transition-colors">Offers</Link>
-                            <Link to="/loyalty" className="hover:text-primary transition-colors flex items-center gap-1"><Star size={14} className="text-yellow-500" />Rewards</Link>
-                            <Link to="/partner" className="hover:text-primary transition-colors">Add Restaurant</Link>
-                            <Link to="/delivery/signup" className="hover:text-primary transition-colors hover:font-bold">Ride with Us</Link>
+                        )}
+                        {!user && (
+                            <>
+                                <Link to="/offers" className="hover:text-primary transition-colors">Offers</Link>
+                                <Link to="/partner" className="hover:text-primary transition-colors">Add Restaurant</Link>
+                                <Link to="/delivery/signup" className="hover:text-primary transition-colors">Ride with Us</Link>
+                            </>
+                        )}
+                        {(!user || user.role === 'customer') && (
                             <Link to="/help" className="hover:text-primary transition-colors">Help</Link>
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     <div className="flex items-center gap-4">
                         {user ? (
                             <div className="flex items-center gap-4">
-                                <span className="text-sm font-medium text-dark hidden lg:block">Hi, {user.name}</span>
+                                <span className={`text-sm font-medium hidden lg:block ${isDarkMode ? 'text-gray-300' : 'text-dark'}`}>Hi, {user.name}</span>
 
                                 {user.role === 'admin' && (
                                     <Link to="/admin/dashboard" className="text-dark hover:text-primary transition-colors" title="Admin Dashboard">
@@ -103,10 +86,10 @@ const Navbar = () => {
                                     </Link>
                                 )}
 
-                                <Link to="/profile" className="text-dark hover:text-primary transition-colors" title="Profile">
+                                <Link to="/profile" className={`hover:text-primary transition-colors ${isDarkMode ? 'text-gray-300' : 'text-dark'}`} title="Profile">
                                     <User size={24} />
                                 </Link>
-                                <button onClick={handleLogout} className="text-dark hover:text-primary transition-colors" title="Logout">
+                                <button onClick={handleLogout} className={`hover:text-primary transition-colors ${isDarkMode ? 'text-gray-300' : 'text-dark'}`} title="Logout">
                                     <LogOut size={24} />
                                 </button>
                             </div>
@@ -120,7 +103,7 @@ const Navbar = () => {
                         )}
 
                         {(!user || user.role === 'customer') && (
-                            <Link to="/cart" className="relative text-dark hover:text-primary transition-colors">
+                            <Link to="/cart" className={`relative transition-colors ${isDarkMode ? 'text-gray-300' : 'text-dark hover:text-primary'}`}>
                                 <ShoppingBag size={24} />
                                 {cartCount > 0 && (
                                     <span className="absolute -top-1 -right-1 bg-primary text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
@@ -135,7 +118,7 @@ const Navbar = () => {
                 {/* Mobile Menu Button */}
                 <div className="md:hidden flex items-center gap-4">
                     {(!user || user.role === 'customer') && (
-                        <Link to="/cart" className="relative text-dark hover:text-primary transition-colors">
+                        <Link to="/cart" className={`relative transition-colors ${isDarkMode ? 'text-gray-300' : 'text-dark hover:text-primary'}`}>
                             <ShoppingBag size={24} />
                             {cartCount > 0 && (
                                 <span className="absolute -top-1 -right-1 bg-primary text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full">
@@ -144,7 +127,7 @@ const Navbar = () => {
                             )}
                         </Link>
                     )}
-                    <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-dark">
+                    <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className={isDarkMode ? 'text-gray-300' : 'text-dark'}>
                         {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
                     </button>
                 </div>
@@ -152,7 +135,7 @@ const Navbar = () => {
 
             {/* Mobile Menu */}
             {isMobileMenuOpen && (
-                <div className="md:hidden absolute top-20 left-0 w-full bg-white shadow-lg border-t border-gray-100 p-4 flex flex-col gap-4">
+                <div className="md:hidden absolute top-20 left-0 w-full shadow-lg border-t p-4 flex flex-col gap-4 transition-colors duration-300 bg-white border-gray-100">
                     {(!user || user.role === 'customer') && (
                         <div className="relative group">
                             <input
@@ -239,18 +222,22 @@ const Navbar = () => {
 
                     {(!user || user.role === 'customer') && (
                         <>
-                            <Link to="/offers" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
-                                <span className="w-5 text-center">%</span> Offers
+                            <Link to="/search" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                <Search size={20} /> Search
                             </Link>
-                            <Link to="/loyalty" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
-                                <span className="w-5 text-center">⭐</span> Rewards
-                            </Link>
-                            <Link to="/partner" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
-                                <span className="w-5 text-center">🏪</span> Add Restaurant
-                            </Link>
-                            <Link to="/delivery/signup" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
-                                <span className="w-5 text-center">🛵</span> Ride with Us
-                            </Link>
+                            {!user && (
+                                <>
+                                    <Link to="/offers" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                        <span className="w-5 text-center">%</span> Offers
+                                    </Link>
+                                    <Link to="/partner" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                        <span className="w-5 text-center">🏪</span> Add Restaurant
+                                    </Link>
+                                    <Link to="/delivery/signup" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
+                                        <span className="w-5 text-center">🛵</span> Ride with Us
+                                    </Link>
+                                </>
+                            )}
                             <Link to="/help" className="flex items-center gap-3 text-dark font-medium p-2 hover:bg-gray-50 rounded-lg">
                                 <span className="w-5 text-center">?</span> Help
                             </Link>

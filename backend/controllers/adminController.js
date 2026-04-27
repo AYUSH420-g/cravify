@@ -139,7 +139,8 @@ exports.getPublicSettings = async (req, res) => {
         res.json({
             maintenanceMode: settings.maintenanceMode,
             globalBroadcastMessage: settings.globalBroadcastMessage,
-            supportEmail: settings.supportEmail
+            supportEmail: settings.supportEmail,
+            platformFee: settings.platformFee
         });
     } catch (err) {
         console.error(err.message);

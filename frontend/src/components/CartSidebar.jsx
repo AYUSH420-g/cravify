@@ -4,12 +4,9 @@ import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
 
 const CartSidebar = () => {
-    const { cartItems, updateQuantity, cartTotal, restaurant } = useCart();
+    const { cartItems, updateQuantity, cartTotal, restaurant, platformFee } = useCart();
 
-    // Constants for taxes and delivery (mock logic)
-    const deliveryFee = cartItems.length > 0 ? 5 : 0;
-    const taxes = cartTotal * 0.05;
-    const toPay = cartTotal + deliveryFee + taxes;
+    const toPay = cartTotal + platformFee;
 
     if (cartItems.length === 0) {
         return (
@@ -49,21 +46,23 @@ const CartSidebar = () => {
 
             <div className="border-t border-gray-100 pt-4 mb-4 space-y-2">
                 <div className="flex justify-between text-sm text-gray-500">
-                    <span>Subtotal</span>
+                    <span>Item Total</span>
                     <span>₹{cartTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-sm text-gray-500">
-                    <span>Delivery Fee</span>
-                    <span>₹{deliveryFee.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-gray-500">
-                    <span>Taxes & Charges (5%)</span>
-                    <span>₹{taxes.toFixed(2)}</span>
+                    <span>Platform Fee</span>
+                    <span>₹{platformFee.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold mt-4 pt-4 border-t border-gray-100 border-dashed">
-                    <span className="text-dark">To Pay</span>
+                    <span className="text-dark">Subtotal</span>
                     <span className="text-dark">₹{toPay.toFixed(2)}</span>
                 </div>
+            </div>
+
+            <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-100">
+                <p className="text-[9px] text-blue-700 font-bold leading-tight uppercase tracking-tighter text-center">
+                    💡 Delivery fee, GST, and offers will be calculated at checkout.
+                </p>
             </div>
 
             <Link to="/checkout">

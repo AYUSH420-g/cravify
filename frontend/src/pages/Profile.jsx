@@ -13,8 +13,21 @@ const Profile = () => {
     const { isDarkMode, toggleTheme } = useTheme();
     const { language, setLanguage, t } = useLanguage();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('orders');
+    const isAdmin = authUser?.role === 'admin';
+    const isRider = authUser?.role === 'delivery_partner';
+    const isVendor = authUser?.role === 'restaurant_partner';
+    
     const [orders, setOrders] = useState([]);
+    const completedOrders = orders.filter(o => o.status === 'Delivered');
+    const totalRevenue = completedOrders.reduce((sum, o) => {
+        const isFreeDelivery = o.offerCode === 'FREE_DELIVERY' || o.itemTotal >= 500;
+        const net = o.itemTotal - (isFreeDelivery ? (o.deliveryEarning || 0) : 0);
+        return sum + net;
+    }, 0);
+    const activeOrders = orders.filter(o => !['Delivered', 'Cancelled', 'Rejected'].includes(o.status));
+    
+    const isSpecialRole = isAdmin || isRider || isVendor;
+    const [activeTab, setActiveTab] = useState(isSpecialRole ? 'settings' : 'orders');
     const [walletHistory, setWalletHistory] = useState([]);
     const [profile, setProfile] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -294,77 +307,82 @@ const Profile = () => {
                                     <div className="w-20 h-20 rounded-full bg-gray-700 mx-auto mb-4 border-4 border-white/10 flex items-center justify-center text-2xl font-bold">{initials}</div>
                                     <h2 className="text-xl font-bold">{userName}</h2>
                                     <p className="text-gray-400 text-sm">{userEmail}</p>
+                                    {(isVendor || isAdmin) && (
+                                        <div className="mt-4 pt-4 border-t border-white/10">
+                                            <p className="text-sm text-gray-400">Net Revenue <small>(Delivered)</small></p>
+                                            <h3 className="text-xl font-bold text-white">₹{totalRevenue.toFixed(0)}</h3>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="p-2">
-                                    <button
-                                        onClick={() => setActiveTab('orders')}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'orders' ? 'bg-primary/10 text-primary font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
-                                    >
-                                        <Package size={20} /> {t('orders')}
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('addresses')}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'addresses' ? 'bg-primary/10 text-primary font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
-                                    >
-                                        <MapPin size={20} /> Addresses
-                                    </button>
-                                    <button
-                                        onClick={() => setActiveTab('wallet')}
-                                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'wallet' ? 'bg-primary/10 text-primary font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
-                                    >
-                                        <Wallet size={20} /> {t('wallet_history')}
-                                    </button>
+                                    {!isSpecialRole && (
+                                        <>
+                                            <button onClick={() => setActiveTab('orders')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'orders' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                                <Package size={20} /> {t('orders')}
+                                            </button>
+                                            <button onClick={() => setActiveTab('addresses')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'addresses' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                                <MapPin size={20} /> {t('addresses')}
+                                            </button>
+                                            <button onClick={() => setActiveTab('wallet')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'wallet' ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]' : 'text-gray-500 hover:bg-gray-50'}`}>
+                                                <Wallet size={20} /> {t('wallet')}
+                                            </button>
+                                        </>
+                                    )}
                                     <button
                                         onClick={() => setActiveTab('settings')}
                                         className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${activeTab === 'settings' ? 'bg-primary/10 text-primary font-bold' : 'text-gray-600 hover:bg-gray-50'}`}
                                     >
-                                        <Settings size={20} /> {t('settings')}
+                                        <Settings size={20} /> {authUser?.role === 'admin' ? 'Account Settings' : t('settings')}
                                     </button>
+                                    
                                     <div className="h-px bg-gray-100 my-2" />
                                     
-                                    {/* ESG & Wallet Sidebar Stats */}
-                                    <div className="px-4 py-4 space-y-4">
-                                        <div className="bg-green-50 rounded-2xl p-4 border border-green-100">
-                                            <div className="flex items-center gap-2 text-green-700 font-bold mb-1">
-                                                <Sparkles size={16} className="notranslate" /> ESG Impact
-                                            </div>
-                                            <p className="text-2xl font-black text-green-600 leading-tight notranslate">
-                                                {profile?.plasticItemsSaved || 0}
-                                            </p>
-                                            <p className="text-[10px] uppercase tracking-wider font-bold text-green-500">Plastic pieces saved</p>
-                                        </div>
-
-                                        <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100">
-                                            <div className="flex items-center justify-between gap-2 text-blue-700 font-bold mb-1">
-                                                <div className="flex items-center gap-2">
-                                                    <Wallet size={16} className="notranslate" /> Cravify Wallet
+                                    {!isSpecialRole && (
+                                        <div className="px-4 py-4 space-y-4">
+                                            <div className="bg-green-50 rounded-2xl p-4 border border-green-100">
+                                                <div className="flex items-center gap-2 text-green-700 font-bold mb-1">
+                                                    <Sparkles size={16} className="notranslate" /> ESG Impact
                                                 </div>
-                                                <button 
-                                                    onClick={() => setShowTopUpModal(true)}
-                                                    className="bg-blue-600 text-white p-1 rounded-md hover:bg-blue-700 transition-colors"
-                                                    title="Top Up"
-                                                >
-                                                    <Plus size={14} />
-                                                </button>
-                                            </div>
-                                            <p className="text-2xl font-black text-blue-600 leading-tight notranslate">
-                                                ₹{profile?.walletBalance || 0}
-                                            </p>
-                                            <p className="text-[10px] uppercase tracking-wider font-bold text-blue-500">Available Credits</p>
-                                        </div>
-
-                                        {profile?.referralCode && (
-                                            <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100">
-                                                <div className="flex items-center gap-2 text-purple-700 font-bold mb-1">
-                                                    <Star size={16} className="notranslate" /> Referral Code
-                                                </div>
-                                                <p className="text-lg font-black text-purple-600 tracking-widest uppercase notranslate">
-                                                    {profile.referralCode}
+                                                <p className="text-2xl font-black text-green-600 leading-tight notranslate">
+                                                    {profile?.plasticItemsSaved || 0}
                                                 </p>
-                                                <p className="text-[10px] uppercase tracking-wider font-bold text-purple-500">Invite & Earn ₹50</p>
+                                                <p className="text-[10px] uppercase tracking-wider font-bold text-green-500">Plastic pieces saved</p>
                                             </div>
-                                        )}
-                                    </div>
+
+                                            {!isSpecialRole && (
+                                                <div className="bg-blue-50 rounded-2xl p-4 border border-blue-100 mb-2">
+                                                    <div className="flex items-center justify-between text-blue-700 font-bold mb-1">
+                                                        <div className="flex items-center gap-2">
+                                                            <Wallet size={16} className="notranslate" /> Wallet
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setShowTopUpModal(true)}
+                                                            className="p-1 hover:bg-blue-100 rounded-lg transition-colors notranslate"
+                                                            title="Top Up"
+                                                        >
+                                                            <Plus size={14} />
+                                                        </button>
+                                                    </div>
+                                                    <p className="text-2xl font-black text-blue-600 leading-tight notranslate">
+                                                        ₹{profile?.walletBalance || 0}
+                                                    </p>
+                                                    <p className="text-[10px] uppercase tracking-wider font-bold text-blue-500">Available Credits</p>
+                                                </div>
+                                            )}
+
+                                            {profile?.referralCode && !(isAdmin || isRider) && (
+                                                <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100">
+                                                    <div className="flex items-center gap-2 text-purple-700 font-bold mb-1">
+                                                        <Star size={16} className="notranslate" /> Referral Code
+                                                    </div>
+                                                    <p className="text-lg font-black text-purple-600 tracking-widest uppercase notranslate">
+                                                        {profile.referralCode}
+                                                    </p>
+                                                    <p className="text-[10px] uppercase tracking-wider font-bold text-purple-500">Invite & Earn ₹50</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
 
                                     <div className="h-px bg-gray-100 my-2" />
                                     <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 transition-colors">
@@ -419,6 +437,12 @@ const Profile = () => {
                                                                 {getStatusLabel(order.status)}
                                                             </span>
                                                         </div>
+
+                                                        {order.status === 'Rejected' && order.rejectionReason && (
+                                                            <div className="mt-2 bg-red-50 text-red-600 p-3 rounded-xl text-xs font-bold border border-red-100 italic">
+                                                                REJECTION REASON: {order.rejectionReason}
+                                                            </div>
+                                                        )}
 
                                                         <p className="text-gray-600 text-sm mb-2">
                                                             {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
@@ -647,8 +671,26 @@ const Profile = () => {
 
                             {activeTab === 'settings' && (
                                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-                                    <div className="space-y-6">
-                                        <div className="pt-6 border-t border-gray-100 skiptranslate">
+                                    <div className="space-y-8">
+                                        {/* Security / Change Password (Always visible for Admin) */}
+                                        <div className="skiptranslate">
+                                            <h4 className="text-sm font-bold text-dark mb-4 flex items-center gap-2">
+                                                <Settings size={16} className="text-primary" /> Security & Authentication
+                                            </h4>
+                                            <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100 max-w-md">
+                                                <p className="text-sm font-bold text-dark mb-4">Change Account Password</p>
+                                                <div className="space-y-4">
+                                                    <input type="password" placeholder="Current Password" disabled className="w-full border rounded-xl px-4 py-2 text-sm bg-white" />
+                                                    <input type="password" placeholder="New Password" disabled className="w-full border rounded-xl px-4 py-2 text-sm bg-white" />
+                                                    <Button variant="outline" size="sm" className="w-full" onClick={() => alert('Password change feature is currently in maintenance mode for security updates.')}>
+                                                        Update Password
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Theme & Language (Only for non-admins or as extra) */}
+                                        <div className="pt-8 border-t border-gray-100 skiptranslate">
                                             <h4 className="text-sm font-bold text-dark mb-4 flex items-center gap-2">
                                                 <Sparkles size={16} className="text-primary" /> {t('theme')} & {t('language')}
                                             </h4>
@@ -688,7 +730,7 @@ const Profile = () => {
                                             </div>
                                         </div>
 
-                                        <p className="text-sm text-gray-400 mt-4 italic">Account settings editing coming soon.</p>
+                                        <p className="text-sm text-gray-400 mt-4 italic">Detailed account editing coming soon.</p>
                                     </div>
                                 </div>
                             )}

@@ -5,8 +5,10 @@ import CartSidebar from '../components/CartSidebar';
 import { Star, Clock, MapPin, Search } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const RestaurantDetails = () => {
+    const { isDarkMode } = useTheme();
     const { id } = useParams();
     const [restaurant, setRestaurant] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -59,11 +61,11 @@ const RestaurantDetails = () => {
     return (
         <MainLayout>
             {/* Restaurant Header */}
-            <div className="bg-dark text-white pt-8 pb-12">
+            <div className="bg-gray-950 text-white pt-8 pb-12 border-b border-gray-900">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <h1 className="text-3xl md:text-4xl font-bold mb-2">{restaurant.name}</h1>
+                            <h1 className="text-3xl md:text-4xl font-bold mb-2 text-white">{restaurant.name}</h1>
                             <p className="text-gray-400 mb-1">{(restaurant.cuisines || []).join(', ')}</p>
                             <p className="text-gray-400 text-sm mb-4 flex items-center gap-1"><MapPin size={14} /> {restaurant.address || 'Address not available'}</p>
 
@@ -79,7 +81,7 @@ const RestaurantDetails = () => {
                             </div>
                         </div>
 
-                        <div className="border border-white/20 rounded-xl p-4 min-w-[300px] bg-white/5 backdrop-blur-sm">
+                        <div className="border border-white/10 rounded-xl p-4 min-w-[300px] bg-white/5 backdrop-blur-sm">
                             <div className="flex items-center gap-2 text-yellow-400 font-bold mb-2 uppercase tracking-wide">
                                 <span className="text-xl">{restaurant.isOnline ? '🟢 OPEN' : '🔴 CLOSED'}</span>
                             </div>
@@ -95,7 +97,7 @@ const RestaurantDetails = () => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="flex items-center gap-4 overflow-x-auto w-full md:w-auto scrollbar-hide">
                         {menuCategories.map(cat => (
-                            <a key={cat.title} href={`#${cat.title}`} className="text-dark font-medium whitespace-nowrap hover:text-primary transition-colors cursor-pointer border-b-2 border-transparent hover:border-primary pb-1">
+                            <a key={cat.title} href={`#${cat.title}`} className={`font-medium whitespace-nowrap hover:text-primary transition-colors cursor-pointer border-b-2 border-transparent hover:border-primary pb-1 ${isDarkMode ? 'text-gray-300' : 'text-dark'}`}>
                                 {cat.title}
                             </a>
                         ))}
@@ -122,7 +124,7 @@ const RestaurantDetails = () => {
                     ) : (
                         menuCategories.map(cat => (
                             <div key={cat.title} id={cat.title} className="mb-8 scroll-mt-40">
-                                <h3 className="text-2xl font-bold text-dark mb-6 flex items-center gap-2">
+                                <h3 className={`text-2xl font-bold mb-6 flex items-center gap-2 ${isDarkMode ? 'text-white' : 'text-dark'}`}>
                                     {cat.title}
                                     <span className="text-base font-normal text-gray-400">({cat.items.length})</span>
                                 </h3>

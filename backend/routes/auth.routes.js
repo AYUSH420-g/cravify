@@ -26,8 +26,15 @@ const validateFileContent = async (req, res, next) => {
     
     for (const fieldName of Object.keys(req.files)) {
         for (const file of req.files[fieldName]) {
-            const fileType = await FileType(file.buffer);
-            if (!fileType || !allowedMimeTypes.includes(fileType.mime)) {
+            // Robust check for file-type API (some versions use fromBuffer, others are functions)
+            let type;
+            if (FileType && typeof FileType.fromBuffer === 'function') {
+                type = await FileType.fromBuffer(file.buffer);
+            } else if (typeof FileType === 'function') {
+                type = await FileType(file.buffer);
+            }
+
+            if (!type || !allowedMimeTypes.includes(type.mime)) {
                 return res.status(400).json({ 
                     message: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' 
                 });

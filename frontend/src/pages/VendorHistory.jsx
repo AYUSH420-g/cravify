@@ -17,7 +17,7 @@ const VendorHistory = () => {
     const fetchHistory = async () => {
         try {
             const res = await fetch('/api/vendor/orders', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'x-auth-token': token }
             });
             if (res.ok) {
                 const data = await res.json();
@@ -132,7 +132,24 @@ const VendorHistory = () => {
                                                 <td className="p-4 text-gray-600 text-sm max-w-[200px] truncate">
                                                     {order.items.map(i => `${i.quantity}x ${i.name}`).join(', ')}
                                                 </td>
-                                                <td className="p-4 font-bold">₹{order.totalAmount.toFixed(2)}</td>
+                                                <td className="p-4">
+                                                    {(() => {
+                                                        const isFreeDelivery = order.offerCode === 'FREE_DELIVERY' || order.itemTotal >= 500;
+                                                        const subsidy = isFreeDelivery ? (order.deliveryEarning || 0) : 0;
+                                                        const net = order.itemTotal - subsidy;
+                                                        return (
+                                                            <div className="flex flex-col">
+                                                                <span className="font-bold text-dark text-sm">₹{net.toFixed(2)}</span>
+                                                                {subsidy > 0 && (
+                                                                    <span className="text-[10px] text-red-500 font-medium">
+                                                                        -₹{subsidy.toFixed(2)} subsidy
+                                                                    </span>
+                                                                )}
+                                                                <span className="text-[9px] text-gray-400">Items: ₹{order.itemTotal}</span>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </td>
                                                 <td className="p-4">
                                                     <span className={`px-2 py-1 text-xs font-bold rounded uppercase ${getStatusStyle(order.status)}`}>
                                                         {order.status}

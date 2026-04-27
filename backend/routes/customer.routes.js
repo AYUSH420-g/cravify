@@ -8,6 +8,7 @@ router.get('/restaurants', customerController.getRestaurants);
 router.get('/restaurants/:id', customerController.getRestaurantById);
 router.get('/surprise-me', customerController.getSurpriseMe);
 router.get('/offers', customerController.getOffers);
+router.get('/settings', customerController.getPublicSettings);
 
 // Protected routes
 router.post('/orders', authMiddleware, customerController.placeOrder);

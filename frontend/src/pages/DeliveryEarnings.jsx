@@ -51,8 +51,8 @@ const DeliveryEarnings = () => {
                             {/* Summary Cards */}
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-                                    <div className="absolute -right-4 -bottom-4 opacity-5">
-                                        <DollarSign size={100} />
+                                    <div className="absolute -right-4 -bottom-4 opacity-5 font-black text-9xl">
+                                        ₹
                                     </div>
                                     <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Earnings</h3>
                                     <span className="text-3xl font-black text-dark">₹{earnings}</span>
@@ -88,16 +88,15 @@ const DeliveryEarnings = () => {
                                 </div>
                             </div>
 
-                            {/* Wallet */}
-                            <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white p-6 rounded-2xl mb-8 flex items-center justify-between">
-                                <div>
-                                    <p className="text-gray-400 text-sm">Wallet Balance</p>
-                                    <h2 className="text-3xl font-bold mt-1">₹{walletBalance}</h2>
+                                <div className="bg-gradient-to-r from-gray-900 to-gray-800 text-white p-6 rounded-2xl mb-8 flex items-center justify-between">
+                                    <div>
+                                        <p className="text-gray-400 text-sm">Wallet Balance</p>
+                                        <h2 className="text-3xl font-bold mt-1">₹{walletBalance}</h2>
+                                    </div>
+                                    <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center font-black text-2xl">
+                                        ₹
+                                    </div>
                                 </div>
-                                <div className="w-14 h-14 bg-white/10 rounded-full flex items-center justify-center">
-                                    <DollarSign size={28} />
-                                </div>
-                            </div>
 
                             {/* Delivery History */}
                             <h2 className="text-xl font-bold text-dark mb-4">Delivery History</h2>

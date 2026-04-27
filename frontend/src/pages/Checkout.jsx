@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MainLayout from '../layouts/MainLayout';
 import Button from '../components/Button';
-import { Home, Briefcase, MapPin, CreditCard, Wallet, Banknote, CheckCircle, Plus, X, Trash2, Loader2, Gift, Star, Sparkles } from 'lucide-react';
+import { Home, Briefcase, MapPin, CreditCard, Wallet, Banknote, CheckCircle, Plus, X, Trash2, Loader2, Gift, Star, Sparkles, Clock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
@@ -39,8 +39,11 @@ const Checkout = () => {
 
     // Add-address modal state
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showPromoList, setShowPromoList] = useState(false);
+    const [availableOffers, setAvailableOffers] = useState([]);
     const [newAddress, setNewAddress] = useState({ street: '', city: '', zip: '', type: 'Home' });
     const [addingAddress, setAddingAddress] = useState(false);
+    const [deliveryInstructions, setDeliveryInstructions] = useState([]); // New state for instructions
 
     // Offer / Dynamic fees
     const [offerCode, setOfferCode] = useState('');
@@ -48,10 +51,11 @@ const Checkout = () => {
     const [feeBreakdown, setFeeBreakdown] = useState(null);
     const [feeLoading, setFeeLoading] = useState(false);
 
-    const deliveryFee = feeBreakdown?.deliveryFee ?? 40;
-    const platformFee = feeBreakdown?.platformFee ?? 5;
-    const gst = feeBreakdown?.gst ?? Math.round(cartTotal * 0.05);
-    const offerDiscount = feeBreakdown?.offerDiscount ?? 0;
+    const [systemSettings, setSystemSettings] = useState(null);
+    const deliveryFee = feeBreakdown ? feeBreakdown.deliveryFee : (cartTotal >= 500 ? 0 : 40);
+    const platformFee = feeBreakdown?.platformFee ?? systemSettings?.platformFee ?? 5;
+    const gst = feeBreakdown?.gst ?? Math.round((cartTotal + deliveryFee + platformFee) * 0.18);
+    const offerDiscount = feeBreakdown?.offerDiscount ?? (cartTotal >= 500 ? (feeBreakdown?.deliveryFee ?? 0) : 0);
     const distanceKm = feeBreakdown?.distanceKm ?? 0;
     const loyaltyDiscount = usePoints ? Math.min(redeemPoints, Math.floor((cartTotal + deliveryFee + platformFee + gst - offerDiscount) * 0.5)) : 0;
     const totalToPay = Math.max(0, cartTotal + deliveryFee + platformFee + gst - offerDiscount - loyaltyDiscount + Number(tipAmount));
@@ -65,9 +69,10 @@ const Checkout = () => {
         }
         const fetchData = async () => {
             try {
-                const [profileRes, loyaltyRes] = await Promise.all([
+                const [profileRes, loyaltyRes, settingsRes] = await Promise.all([
                     fetch('/api/customer/profile', { headers: { 'x-auth-token': token } }),
-                    fetch('/api/loyalty/balance', { headers: { 'x-auth-token': token } })
+                    fetch('/api/loyalty/balance', { headers: { 'x-auth-token': token } }),
+                    fetch('/api/admin/settings/public')
                 ]);
                 const profileData = await profileRes.json();
                 if (profileRes.ok) {
@@ -83,6 +88,10 @@ const Checkout = () => {
                 if (loyaltyRes.ok) {
                     setLoyaltyBalance(loyaltyData.points || 0);
                     setRedeemPoints(loyaltyData.points || 0);
+                }
+                if (settingsRes.ok) {
+                    const settingsData = await settingsRes.json();
+                    setSystemSettings(settingsData);
                 }
             } catch (e) {
                 console.error('Failed to fetch data', e);
@@ -110,7 +119,8 @@ const Checkout = () => {
                         deliveryPincode: selectedAddr.zip,
                         itemTotal: cartTotal,
                         offerCode: appliedOffer,
-                        paymentMethod: selectedPayment === 'razorpay' ? 'Razorpay' : 'COD'
+                        paymentMethod: selectedPayment === 'razorpay' ? 'Razorpay' : 'COD',
+                        deliveryLocation // Send coordinates for precise distance
                     })
                 });
                 const data = await res.json();
@@ -130,7 +140,7 @@ const Checkout = () => {
             }
         };
         calcFees();
-    }, [selectedAddressId, appliedOffer, cartTotal, selectedPayment]);
+    }, [selectedAddressId, appliedOffer, cartTotal, selectedPayment, deliveryLocation]);
 
     // Browser geolocation as a fallback
     const [browserLocation, setBrowserLocation] = useState(null);
@@ -150,6 +160,66 @@ const Checkout = () => {
             { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 }
         );
     }, []);
+
+    useEffect(() => {
+        const fetchOffers = async () => {
+            try {
+                const res = await fetch('/api/customer/offers');
+                const data = await res.json();
+                if (res.ok) setAvailableOffers(data.offers || []);
+            } catch (e) { console.error('Promo fetch failed:', e); }
+        };
+        fetchOffers();
+    }, []);
+
+    const PromoListModal = () => (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div className="bg-primary p-6 text-white text-center relative">
+                    <button onClick={() => setShowPromoList(false)} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors">✕</button>
+                    <Gift className="mx-auto mb-2" size={32} />
+                    <h2 className="text-2xl font-black italic uppercase">Available Coupons</h2>
+                    <p className="text-red-100 text-xs">Save more on your delicious cravings!</p>
+                </div>
+                <div className="p-6 max-h-[400px] overflow-y-auto space-y-4 custom-scrollbar">
+                    {availableOffers.map((offer, idx) => (
+                        <div key={idx} className="border-2 border-dashed border-gray-200 rounded-2xl p-4 hover:border-primary/30 transition-colors relative group">
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <span className="bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest">{offer.code}</span>
+                                    <h3 className="font-bold text-dark mt-1">{offer.title}</h3>
+                                </div>
+                                <button 
+                                    onClick={() => {
+                                        setOfferCode(offer.code);
+                                        setAppliedOffer(offer.code);
+                                        setShowPromoList(false);
+                                    }}
+                                    className="text-xs font-bold text-primary hover:underline"
+                                >
+                                    APPLY
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">{offer.description}</p>
+                            <div className="pt-2 border-t border-gray-50 text-[9px] text-gray-400 font-medium">
+                                <ul>
+                                    <li>• Min order: ₹{offer.minOrder}</li>
+                                    <li>• Max discount: ₹200</li>
+                                    <li>• Standard T&C Apply</li>
+                                </ul>
+                            </div>
+                        </div>
+                    ))}
+                    {availableOffers.length === 0 && (
+                        <p className="text-center text-gray-400 py-8">No special promos right now. Check back soon!</p>
+                    )}
+                </div>
+                <div className="p-6 bg-gray-50">
+                    <button onClick={() => setShowPromoList(false)} className="w-full py-3 bg-dark text-white rounded-xl font-bold text-sm">Close</button>
+                </div>
+            </div>
+        </div>
+    );
 
     // Sync deliveryLocation with selected address's geocoded coordinates
     useEffect(() => {
@@ -267,7 +337,8 @@ const Checkout = () => {
                     loyaltyPointsToRedeem: loyaltyDiscount,
                     offerCode: appliedOffer,
                     noCutlery,
-                    tipAmount: Number(tipAmount)
+                    tipAmount: Number(tipAmount),
+                    deliveryInstructions: deliveryInstructions.join(', ') // Send instructions
                 })
             });
             const data = await res.json();
@@ -344,7 +415,8 @@ const Checkout = () => {
                                     paymentMethod: selectedPayment === 'upi' ? 'UPI' : 'Card',
                                     loyaltyPointsUsed: loyaltyDiscount,
                                     noCutlery,
-                                    tipAmount: Number(tipAmount)
+                                    tipAmount: Number(tipAmount),
+                                    deliveryInstructions: deliveryInstructions.join(', ')
                                 }
                             })
                         });
@@ -403,7 +475,8 @@ const Checkout = () => {
                     loyaltyPointsToRedeem: loyaltyDiscount,
                     offerCode: appliedOffer,
                     noCutlery,
-                    tipAmount: Number(tipAmount)
+                    tipAmount: Number(tipAmount),
+                    deliveryInstructions: deliveryInstructions.join(', ')
                 })
             });
             const data = await res.json();
@@ -619,6 +692,38 @@ const Checkout = () => {
                                 </div>
                             </div>
 
+                            {/* ─── Delivery Instructions Section ─── */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                                <h2 className="text-xl font-bold flex items-center gap-3 mb-4">
+                                    <Clock className="text-dark" size={22} /> Delivery Instructions
+                                </h2>
+                                <div className="flex gap-4">
+                                    {[
+                                        { id: 'avoid_call', label: 'Avoid calling', icon: '🤫' },
+                                        { id: 'leave_door', label: 'Leave at door', icon: '🚪' }
+                                    ].map(inst => {
+                                        const isSelected = deliveryInstructions.includes(inst.label);
+                                        return (
+                                            <button
+                                                key={inst.id}
+                                                type="button"
+                                                onClick={() => {
+                                                    if (isSelected) {
+                                                        setDeliveryInstructions(prev => prev.filter(i => i !== inst.label));
+                                                    } else {
+                                                        setDeliveryInstructions(prev => [...prev, inst.label]);
+                                                    }
+                                                }}
+                                                className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${isSelected ? 'border-primary bg-red-50 text-primary' : 'border-gray-100 text-gray-500 hover:border-gray-200'}`}
+                                            >
+                                                <span className="text-2xl">{inst.icon}</span>
+                                                <span className="text-sm font-bold">{inst.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
                             {/* ─── Rider Tip Section ─── */}
                             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                                 <h2 className="text-xl font-bold flex items-center gap-3 mb-2">
@@ -706,12 +811,12 @@ const Checkout = () => {
                                             value={offerCode}
                                             onChange={(e) => setOfferCode(e.target.value.toUpperCase())}
                                             disabled={!!appliedOffer}
-                                            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50"
+                                            className="min-w-0 flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:bg-gray-50"
                                         />
                                         {appliedOffer ? (
                                             <button
                                                 onClick={() => { setAppliedOffer(''); setOfferCode(''); }}
-                                                className="px-4 py-2 text-sm font-bold text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition"
+                                                className="shrink-0 px-4 py-2 text-sm font-bold text-red-500 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition"
                                             >
                                                 Remove
                                             </button>
@@ -725,6 +830,12 @@ const Checkout = () => {
                                             </button>
                                         )}
                                     </div>
+                                    <button 
+                                        onClick={() => setShowPromoList(true)}
+                                        className="text-[10px] font-bold text-primary hover:underline mt-2 flex items-center gap-1 uppercase tracking-wider"
+                                    >
+                                        <Gift size={10} /> View Available Promos & Coupons
+                                    </button>
                                     {appliedOffer && offerDiscount > 0 && (
                                         <p className="text-green-600 text-xs mt-2 font-bold">✅ Code {appliedOffer} applied — you save ₹{offerDiscount}!</p>
                                     )}
@@ -749,7 +860,7 @@ const Checkout = () => {
                                         <span>₹{platformFee.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between text-gray-500 text-sm">
-                                        <span>GST (5%)</span>
+                                        <span>GST (18%)</span>
                                         <span>₹{gst.toFixed(2)}</span>
                                     </div>
                                     {offerDiscount > 0 && (
@@ -858,6 +969,8 @@ const Checkout = () => {
                     </div>
                 </div>
             )}
+            {/* Promos Modal */}
+            {showPromoList && <PromoListModal />}
         </MainLayout>
     );
 };

@@ -10,6 +10,8 @@ const AdminRestaurantView = () => {
     const [restaurant, setRestaurant] = useState(null);
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showEarningModal, setShowEarningModal] = useState(false);
+    const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -26,7 +28,7 @@ const AdminRestaurantView = () => {
 
             // Fetch recent orders for this restaurant
             const ordersRes = await fetch(`/api/admin/orders?restaurant=${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { 'x-auth-token': token }
             });
             if (ordersRes.ok) {
                 const ordersData = await ordersRes.json();
@@ -62,8 +64,59 @@ const AdminRestaurantView = () => {
     }
 
     const completedOrders = orders.filter(o => o.status === 'Delivered');
-    const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const totalSubsidy = completedOrders.reduce((sum, o) => {
+        const isFreeDelivery = o.offerCode === 'FREE_DELIVERY' || o.itemTotal >= 500;
+        return sum + (isFreeDelivery ? (o.deliveryEarning || 0) : 0);
+    }, 0);
+    const totalItemSales = completedOrders.reduce((sum, o) => sum + (o.itemTotal || 0), 0);
+    const totalRevenue = totalItemSales - totalSubsidy;
     const activeOrders = orders.filter(o => !['Delivered', 'Cancelled', 'Rejected'].includes(o.status));
+
+    const EarningDetailModal = () => (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+                <div className="bg-primary p-8 text-white text-center relative">
+                    <button onClick={() => setShowEarningModal(false)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors">✕</button>
+                    <p className="text-red-100 text-sm font-bold uppercase tracking-widest mb-2">Net Revenue Breakdown</p>
+                    <h2 className="text-5xl font-black italic">₹{totalRevenue.toFixed(0)}</h2>
+                </div>
+                <div className="p-8">
+                    <h3 className="font-bold text-dark mb-6 flex items-center gap-2">
+                        <Clock size={18} className="text-primary" /> Detailed Order Stats
+                    </h3>
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100">
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-600">Total Item Sales</span>
+                                    <span className="font-bold text-dark">₹{totalItemSales.toFixed(0)}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm text-red-500 font-medium">
+                                    <span>Total Delivery Subsidies</span>
+                                    <span>- ₹{totalSubsidy.toFixed(0)}</span>
+                                </div>
+                                <div className="h-px bg-gray-200 my-1" />
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-600 font-medium">Delivered Orders</span>
+                                    <span className="font-bold text-dark">{completedOrders.length}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-gray-600">Avg. Net/Order</span>
+                                    <span className="font-bold text-dark">₹{completedOrders.length > 0 ? (totalRevenue / completedOrders.length).toFixed(1) : 0}</span>
+                                </div>
+                                <div className="h-px bg-gray-200 my-2" />
+                                <div className="flex justify-between items-center font-black text-xl">
+                                    <span className="text-dark">Total Net Payout</span>
+                                    <span className="text-primary">₹{totalRevenue.toFixed(0)}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <Button variant="primary" className="w-full mt-8 py-4 rounded-2xl" onClick={() => setShowEarningModal(false)}>Close Overview</Button>
+                </div>
+            </div>
+        </div>
+    );
 
     return (
         <MainLayout>
@@ -92,9 +145,9 @@ const AdminRestaurantView = () => {
                                     <span className={`px-2 py-1 rounded-full text-xs ${restaurant.isOnline ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                                         {restaurant.isOnline ? 'ONLINE' : 'OFFLINE'}
                                     </span>
-                                    <span className="flex items-center bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs">
+                                    <div onClick={() => setShowFeedbackModal(true)} className="flex items-center bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs cursor-pointer hover:bg-yellow-200 transition-colors">
                                         {restaurant.rating || '0.0'} <Star size={12} className="ml-1 fill-yellow-700" />
-                                    </span>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-3 text-sm text-gray-600 mb-6">
@@ -114,10 +167,10 @@ const AdminRestaurantView = () => {
                                             <div className="flex items-center gap-2"><Mail size={14}/> {restaurant.vendor.email}</div>
                                             <div className="flex items-center gap-2"><Phone size={14}/> {restaurant.vendor.phone || 'N/A'}</div>
                                             <div className="flex items-center gap-2 mt-2">
-                                                <FileText size={14}/> FSSAI: {restaurant.vendor.vendorDetails?.fssaiNumber || 'N/A'}
+                                                <FileText size={14}/> FSSAI: {restaurant.vendor.restaurantDetails?.fssai || 'N/A'}
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <FileText size={14}/> GST: {restaurant.vendor.vendorDetails?.gstNumber || 'N/A'}
+                                                <MapPin size={14}/> Address: {restaurant.vendor.restaurantDetails?.address || 'N/A'}
                                             </div>
                                         </div>
                                     ) : (
@@ -125,23 +178,6 @@ const AdminRestaurantView = () => {
                                     )}
                                 </div>
                             </div>
-                        </div>
-
-                        {/* Certificates / Documents block if needed */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                             <h3 className="font-bold text-dark mb-4">Certificates</h3>
-                             {restaurant.vendor && restaurant.vendor.documents && restaurant.vendor.documents.length > 0 ? (
-                                <div className="space-y-2">
-                                    {restaurant.vendor.documents.map((doc, idx) => (
-                                        <a key={idx} href={doc.url} target="_blank" rel="noopener noreferrer" className="flex items-center p-3 border rounded-lg hover:bg-gray-50 text-sm">
-                                            <FileText size={16} className="mr-2 text-primary" />
-                                            <span className="flex-1 truncate">{doc.label || `Document ${idx+1}`}</span>
-                                        </a>
-                                    ))}
-                                </div>
-                             ) : (
-                                <p className="text-sm text-gray-500">No certificates uploaded.</p>
-                             )}
                         </div>
                     </div>
 
@@ -163,11 +199,11 @@ const AdminRestaurantView = () => {
                                     <h3 className="text-xl font-bold text-dark">{completedOrders.length}</h3>
                                 </div>
                             </div>
-                            <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                            <div onClick={() => setShowEarningModal(true)} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4 cursor-pointer hover:scale-[1.02] transition-all active:scale-[0.98]">
                                 <div className="bg-purple-50 p-3 rounded-xl text-purple-600">₹</div>
                                 <div>
-                                    <p className="text-sm text-gray-500">Total Revenue</p>
-                                    <h3 className="text-xl font-bold text-dark">₹{totalRevenue}</h3>
+                                    <p className="text-sm text-gray-500">Net Revenue <small>(Delivered)</small></p>
+                                    <h3 className="text-xl font-bold text-dark">₹{totalRevenue.toFixed(0)}</h3>
                                 </div>
                             </div>
                         </div>
@@ -201,7 +237,19 @@ const AdminRestaurantView = () => {
                                                                 {order.status}
                                                             </span>
                                                         </td>
-                                                        <td className="px-5 py-4 text-right font-medium text-dark">₹{order.totalAmount}</td>
+                                                        <td className="px-5 py-4 text-right">
+                                                            {(() => {
+                                                                const isFreeDelivery = order.offerCode === 'FREE_DELIVERY' || order.itemTotal >= 500;
+                                                                const subsidy = isFreeDelivery ? (order.deliveryEarning || 0) : 0;
+                                                                const net = (order.itemTotal || 0) - subsidy;
+                                                                return (
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span className="font-bold text-dark">₹{net.toFixed(0)}</span>
+                                                                        {subsidy > 0 && <span className="text-[10px] text-red-500">-₹{subsidy} subsidy</span>}
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </td>
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -219,7 +267,7 @@ const AdminRestaurantView = () => {
                                 <h3 className="font-bold text-lg text-dark">Menu Overview</h3>
                                 <span className="text-sm bg-gray-200 text-gray-700 px-2 py-1 rounded-full">{restaurant.menu?.length || 0} Items</span>
                             </div>
-                            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto custom-scrollbar">
                                 {restaurant.menu && restaurant.menu.length > 0 ? (
                                     restaurant.menu.map((item, idx) => (
                                         <div key={idx} className="flex gap-3 p-3 border rounded-xl hover:border-primary/30 transition-colors">
@@ -231,7 +279,6 @@ const AdminRestaurantView = () => {
                                                 <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{item.description}</p>
                                                 <div className="flex items-center gap-2 mt-1">
                                                     <span className="text-primary font-bold text-sm">₹{item.price}</span>
-                                                    {!item.isAvailable && <span className="text-[10px] bg-red-100 text-red-600 px-1 rounded">Out of stock</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -241,8 +288,70 @@ const AdminRestaurantView = () => {
                                 )}
                             </div>
                         </div>
+
+                        {/* Recent Reviews */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+                                <h3 className="font-bold text-lg text-dark">Recent Customer Feedback</h3>
+                            </div>
+                            <div className="p-6 space-y-4">
+                                {orders.filter(o => o.restaurantRating).length > 0 ? (
+                                    orders.filter(o => o.restaurantRating).slice(0, 5).map((order, idx) => (
+                                        <div key={idx} className="pb-4 border-b border-gray-100 last:border-0">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-sm font-bold text-dark">{order.user?.name || 'Customer'}</span>
+                                                <div className="flex items-center text-yellow-500 text-xs font-bold gap-0.5">
+                                                    <Star size={12} className="fill-yellow-500" /> {order.restaurantRating}
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-gray-500 italic">"{order.ratingComment || 'No written feedback provided'}"</p>
+                                            <p className="text-[10px] text-gray-400 mt-1">{new Date(order.createdAt).toLocaleDateString()}</p>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-gray-400 py-4 italic">No ratings yet.</p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
+                {showEarningModal && <EarningDetailModal />}
+                {showFeedbackModal && (
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+                            <div className="bg-yellow-500 p-8 text-white text-center relative">
+                                <button onClick={() => setShowFeedbackModal(false)} className="absolute top-6 right-6 text-white/70 hover:text-white transition-colors">✕</button>
+                                <p className="text-yellow-100 text-sm font-bold uppercase tracking-widest mb-2">Restaurant Ratings</p>
+                                <div className="flex items-center justify-center gap-2">
+                                    <Star size={32} className="fill-white text-white" />
+                                    <h2 className="text-5xl font-black italic">{restaurant.rating || '0.0'}</h2>
+                                </div>
+                            </div>
+                            <div className="p-8">
+                                <h3 className="font-bold text-dark mb-6">Recent Customer Feedback</h3>
+                                <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {orders.filter(o => o.restaurantRating).length > 0 ? (
+                                        orders.filter(o => o.restaurantRating).map((order, idx) => (
+                                            <div key={idx} className="p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="font-bold text-dark text-sm">{order.user?.name || 'Customer'}</span>
+                                                    <div className="flex items-center text-yellow-500 text-xs font-bold gap-0.5">
+                                                        <Star size={12} className="fill-yellow-500" /> {order.restaurantRating}
+                                                    </div>
+                                                </div>
+                                                <p className="text-sm text-gray-600 italic">"{order.ratingComment || 'No written feedback provided'}"</p>
+                                                <p className="text-[10px] text-gray-400 mt-2">{new Date(order.createdAt).toLocaleDateString()}</p>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-gray-400 py-4 italic">No ratings yet.</p>
+                                    )}
+                                </div>
+                                <button className="w-full mt-8 py-4 bg-yellow-500 text-white rounded-2xl font-bold shadow-lg shadow-yellow-200" onClick={() => setShowFeedbackModal(false)}>Close Reviews</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </MainLayout>
     );

@@ -46,8 +46,10 @@ const OrderTracking = () => {
     useEffect(() => {
         if (!socket) return;
 
+        console.log('Registering OrderTracking socket listeners. Socket ID:', socket.id);
+
         const handleReceiveMessage = (message) => {
-            console.log('Chat message received:', message);
+            console.log('CHAT EVENT [receive_message]:', message);
             const msgOrderId = (message.order?._id || message.order || '').toString();
             const currentOrderId = (orderIdRef.current || '').toString();
             
@@ -62,6 +64,8 @@ const OrderTracking = () => {
                     return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
                 });
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else {
+                console.warn('Chat message for different order ignored:', { msgOrderId, currentOrderId });
             }
         };
 
@@ -70,6 +74,7 @@ const OrderTracking = () => {
         };
 
         const handleStatusUpdate = (updatedOrder) => {
+            console.log('ORDER STATUS UPDATE RECEIVED:', updatedOrder.status);
             if (updatedOrder?._id === orderIdRef.current) {
                 setOrder(updatedOrder);
                 if (updatedOrder.deliveryPartner?.lastKnownLocation) {
@@ -82,22 +87,37 @@ const OrderTracking = () => {
         socket.on('chat_message', handleReceiveMessage);
         socket.on('location_update', handleLocationUpdate);
         socket.on('order_status_updated', handleStatusUpdate);
+        socket.on('joined_room', (data) => console.log('✅ ROOM JOIN CONFIRMED:', data));
 
         return () => {
+            console.log('Cleaning up OrderTracking socket listeners');
             socket.off('receive_message', handleReceiveMessage);
             socket.off('chat_message', handleReceiveMessage);
             socket.off('location_update', handleLocationUpdate);
             socket.off('order_status_updated', handleStatusUpdate);
+            socket.off('joined_room');
         };
     }, [socket]); // socket only — all handlers use refs
 
     // Join room + rejoin on reconnect whenever order changes
     useEffect(() => {
         if (!order?._id || !socket) return;
-        socket.emit('join_order_room', order._id);
-        const handleReconnect = () => { socket.emit('join_order_room', order._id); fetchLatestActiveOrder(); };
-        socket.on('connect', handleReconnect);
-        return () => socket.off('connect', handleReconnect);
+
+        const joinRoom = () => {
+            console.log('Emitting join_order_room for:', order._id);
+            socket.emit('join_order_room', order._id);
+        };
+
+        joinRoom();
+
+        // Re-join on every connect/reconnect
+        socket.on('connect', joinRoom);
+        socket.io.on('reconnect', joinRoom);
+
+        return () => {
+            socket.off('connect', joinRoom);
+            socket.io.off('reconnect', joinRoom);
+        };
     }, [order?._id, socket]);
 
     // Load chat history whenever order changes
@@ -248,6 +268,63 @@ const OrderTracking = () => {
     if (order.status === 'OutForDelivery') progressValue = 4;
     if (order.status === 'Delivered') progressValue = 5;
     if (isCancelled || isRejected) progressValue = 0;
+
+    const StatusCard = () => (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div className="flex items-center gap-4 mb-6">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isRejected || isCancelled ? 'bg-red-100 text-red-600' : 'bg-primary/10 text-primary animate-pulse'}`}>
+                    {isRejected || isCancelled ? <X size={24} /> : <Clock size={24} />}
+                </div>
+                <div>
+                    <h2 className="text-xl font-bold text-dark">
+                        {isRejected ? 'Order Rejected' : isCancelled ? 'Order Cancelled' : 'Order Progress'}
+                    </h2>
+                    <p className="text-gray-500 text-sm">
+                        {isRejected ? 'The restaurant could not fulfill your order.' : isCancelled ? 'This order has been cancelled.' : 'Tracking your delicious meal in real-time'}
+                    </p>
+                </div>
+            </div>
+
+            {(isRejected && order.rejectionReason) && (
+                <div className="mb-6 bg-red-50 border border-red-100 p-4 rounded-xl flex items-start gap-3">
+                    <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                        <X size={16} className="text-red-600" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-bold text-red-700 uppercase tracking-wider mb-0.5">Rejection Reason</p>
+                        <p className="text-sm text-red-600 italic font-medium">"{order.rejectionReason}"</p>
+                    </div>
+                </div>
+            )}
+
+            {!isCancelled && !isRejected && (
+                <div className="space-y-6">
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-primary transition-all duration-1000"
+                            style={{ width: `${(progressValue / steps.length) * 100}%` }}
+                        ></div>
+                    </div>
+
+                    <div className="flex flex-col gap-4">
+                        {steps.map((step) => {
+                            const isCompleted = progressValue >= step.value;
+                            const isCurrent = progressValue === step.value;
+
+                            return (
+                                <div key={step.key} className={`flex items-center gap-3 ${isCompleted ? 'text-dark' : 'text-gray-300'}`}>
+                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${isCompleted ? 'bg-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
+                                        {isCompleted ? <Check size={12} /> : step.value}
+                                    </div>
+                                    <span className={`text-sm ${isCurrent ? 'font-bold text-primary' : ''}`}>{step.label}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 
     const progressPercentage = Math.min(
         ((progressValue - 1) / (steps.length - 1)) * 100,
@@ -424,7 +501,9 @@ const OrderTracking = () => {
                                 <span>Total</span>
                                 <span className="text-primary text-xl">₹{order.totalAmount?.toFixed(2)}</span>
                             </div>
-                            <p className="text-xs text-center text-gray-400 mt-2 font-medium">Paid via {order.paymentMethod}</p>
+                            <p className="text-xs text-center text-gray-400 mt-2 font-medium">
+                                {order.paymentMethod === 'COD' ? 'Pay via COD' : `Paid via ${order.paymentMethod}`}
+                            </p>
 
                             <Button
                                 variant="ghost"

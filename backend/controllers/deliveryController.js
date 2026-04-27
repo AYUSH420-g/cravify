@@ -208,3 +208,20 @@ exports.getHistoryAndEarnings = async (req, res) => {
         res.status(500).json({ message: 'Server error fetching history' });
     }
 };
+// Get ratings and feedback for the rider
+exports.getRatingsFeedback = async (req, res) => {
+    try {
+        const orders = await Order.find({
+            deliveryPartner: req.user.id,
+            deliveryRating: { $gt: 0 }
+        })
+        .populate('user', 'name')
+        .select('deliveryRating ratingComment user updatedAt')
+        .sort({ updatedAt: -1 });
+
+        res.json({ success: true, ratings: orders });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).json({ message: 'Server error fetching ratings' });
+    }
+};

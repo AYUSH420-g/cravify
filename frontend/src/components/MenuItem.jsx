@@ -31,7 +31,7 @@ const MenuItem = ({ id, _id, name, price, description, image, isVeg, votes, rest
                 <img src={image} alt={name} className="w-full h-full object-cover rounded-xl" />
                 <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-24">
                     {useAuth().user && useAuth().user.role !== 'customer' ? (
-                        <div className="bg-gray-100 text-gray-400 border border-gray-200 shadow-sm rounded-xl h-9 flex items-center justify-center font-bold text-[10px] uppercase px-1">
+                        <div className="bg-white text-gray-400 border border-gray-200 shadow-sm rounded-xl h-9 flex items-center justify-center font-bold text-[10px] uppercase px-1">
                             {useAuth().user.role.replace('_partner', '')}
                         </div>
                     ) : cartItem ? (
@@ -43,7 +43,7 @@ const MenuItem = ({ id, _id, name, price, description, image, isVeg, votes, rest
                     ) : (
                         <Button
                             variant="primary"
-                            className="w-full shadow-lg h-9 text-sm uppercase bg-white text-green-600 border border-gray-200 hover:bg-gray-50"
+                            className="w-full shadow-lg h-9 text-sm uppercase bg-white text-green-600 border border-gray-200 hover:bg-gray-100"
                             onClick={handleAdd}
                         >
                             Add
