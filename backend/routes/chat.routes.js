@@ -68,12 +68,26 @@ router.post('/:orderId', authMiddleware, async (req, res) => {
         // Populate sender info
         await message.populate('sender', 'name role');
 
-        // Emit via socket.io to everyone in the order room
+        // Emit via socket.io to everyone in the order room and participant personal rooms
         const io = req.app.get('io');
         if (io) {
-            console.log(`Emitting chat message to room order_${orderId}`);
+            const Restaurant = require('../models/Restaurant');
+            const restaurant = await Restaurant.findById(order.restaurant);
+
+            console.log(`💬 [HTTP CHAT] Broadcasting msg to all participant rooms for order_${orderId}`);
+            
+            // 1. Order Room
             io.to(`order_${orderId}`).emit('receive_message', message);
             io.to(`order_${orderId}`).emit('chat_message', message);
+
+            // 2. Personal Rooms
+            io.to(`user_${order.user}`).emit('receive_message', message);
+            if (order.deliveryPartner) {
+                io.to(`user_${order.deliveryPartner}`).emit('receive_message', message);
+            }
+            if (restaurant && restaurant.vendor) {
+                io.to(`user_${restaurant.vendor}`).emit('receive_message', message);
+            }
         } else {
             console.warn('Socket.io instance not found in app, real-time chat will fail');
         }

@@ -120,23 +120,47 @@ const OrderTracking = () => {
         };
     }, [order?._id, socket]);
 
-    // Load chat history whenever order changes
+    // Load chat history whenever order changes or periodically when chat is open
+    const fetchChatHistory = async () => {
+        if (!orderIdRef.current || !token) return;
+        try {
+            const res = await fetch(`/api/chat/${orderIdRef.current}`, { headers: { 'x-auth-token': token } });
+            const data = await res.json();
+            if (data.success) {
+                setMessages(prev => {
+                    const newMessages = [...prev];
+                    let added = false;
+                    (data.data || []).forEach(msg => {
+                        if (!newMessages.some(m => m._id === msg._id)) {
+                            newMessages.push(msg);
+                            added = true;
+                        }
+                    });
+                    if (!added) return prev;
+                    return newMessages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+            }
+        } catch (err) {
+            console.error('Chat history fetch error:', err);
+        }
+    };
+
     useEffect(() => {
         if (!order?._id || !token) return;
-        // Reset so stale messages from a previous order never linger
+        // Initial load
         setMessages([]);
         setUnreadCount(0);
-        fetch(`/api/chat/${order._id}`, { headers: { 'x-auth-token': token } })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const sorted = (data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                    setMessages(sorted);
-                    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-                }
-            })
-            .catch(err => console.error('Chat history load error:', err));
+        fetchChatHistory();
     }, [order?._id, token]);
+
+    // Polling fallback when chat is open
+    useEffect(() => {
+        let interval;
+        if (isChatOpen && order?._id) {
+            interval = setInterval(fetchChatHistory, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [isChatOpen, order?._id]);
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -532,7 +556,7 @@ const OrderTracking = () => {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                        {messages.filter(msg => ['customer', 'delivery_partner'].includes(msg.senderRole)).map((msg) => {
+                        {messages.map((msg) => {
                             const isMe = msg.senderRole === 'customer';
                             return (
                                 <div key={msg._id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>

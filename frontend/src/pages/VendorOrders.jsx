@@ -52,46 +52,82 @@ const VendorOrders = () => {
     useEffect(() => {
         if (!socket || !chatOrder?._id) return;
 
-        socket.emit('join_order_room', chatOrder._id);
+        const joinRoom = () => {
+            console.log('VENDOR: Emitting join_order_room for:', chatOrder._id);
+            socket.emit('join_order_room', chatOrder._id);
+        };
+
+        joinRoom();
+
+        // Re-join on every connect/reconnect
+        socket.on('connect', joinRoom);
+        if (socket.io) {
+            socket.io.on('reconnect', joinRoom);
+        }
 
         const handleReceiveMessage = (message) => {
             const messageOrderId = message?.order?._id || message?.order;
             if (messageOrderId?.toString() !== chatOrder._id) return;
 
-            setChatMessages(prev => [...prev, message]);
+            setChatMessages(prev => {
+                if (prev.some(m => m._id === message._id)) return prev;
+                return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            });
             setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         };
 
         socket.on('chat_message', handleReceiveMessage);
+        socket.on('receive_message', handleReceiveMessage);
 
         return () => {
+            socket.off('connect', joinRoom);
+            if (socket.io) socket.io.off('reconnect', joinRoom);
             socket.off('chat_message', handleReceiveMessage);
+            socket.off('receive_message', handleReceiveMessage);
         };
     }, [socket, chatOrder?._id]);
 
+    const fetchChatMessages = async () => {
+        if (!chatOrder?._id || !token) return;
+        try {
+            const res = await fetch(`/api/chat/${chatOrder._id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setChatMessages(prev => {
+                    const newMessages = [...prev];
+                    let added = false;
+                    (data.data || []).forEach(msg => {
+                        if (!newMessages.some(m => m._id === msg._id)) {
+                            newMessages.push(msg);
+                            added = true;
+                        }
+                    });
+                    if (!added) return prev;
+                    return newMessages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        } catch (err) {
+            console.error('Failed to fetch chat messages', err);
+        }
+    };
+
     useEffect(() => {
         if (!chatOrder?._id || !token) return;
-
-        const fetchChat = async () => {
-            setChatLoading(true);
-            try {
-                const res = await fetch(`/api/chat/${chatOrder._id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const data = await res.json();
-                if (res.ok && data.success) {
-                    setChatMessages(data.data || []);
-                    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-                }
-            } catch (err) {
-                console.error('Failed to load chat messages', err);
-            } finally {
-                setChatLoading(false);
-            }
-        };
-
-        fetchChat();
+        setChatMessages([]);
+        fetchChatMessages();
     }, [chatOrder?._id, token]);
+
+    // Polling fallback when chat is open
+    useEffect(() => {
+        let interval;
+        if (chatOrder?._id) {
+            interval = setInterval(fetchChatMessages, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [chatOrder?._id]);
 
     const fetchOrders = async () => {
         try {
@@ -171,17 +207,38 @@ const VendorOrders = () => {
         setChatText('');
     };
 
-    const sendChatMessage = (e) => {
+    const sendChatMessage = async (e) => {
         e.preventDefault();
-        if (!socket || !chatOrder || !chatText.trim() || !user?.id) return;
+        if (!chatOrder || !chatText.trim() || !token) return;
 
-        socket.emit('send_message', {
-            orderId: chatOrder._id,
-            senderId: user.id,
-            senderRole: 'restaurant_partner',
-            text: chatText.trim()
-        });
+        const text = chatText.trim();
         setChatText('');
+
+        try {
+            const res = await fetch(`/api/chat/${chatOrder._id}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    text,
+                    senderRole: 'restaurant_partner'
+                })
+            });
+            
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setChatMessages(prev => {
+                    if (prev.find(m => m._id === data.message._id)) return prev;
+                    return [...prev, data.message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+                setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            }
+        } catch (err) {
+            console.error('Failed to send chat message via HTTP', err);
+            setChatText(text);
+        }
     };
 
     const roleLabel = (senderRole) => {

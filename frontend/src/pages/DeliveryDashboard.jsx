@@ -229,25 +229,48 @@ const DeliveryDashboard = () => {
         };
     }, [activeOrder?._id, socket]);
 
-    // Load chat history only when orderId actually changes (NOT on every 10s poll)
+    // Fetch logic that handles deduplication and sorting
+    const fetchChatHistory = async () => {
+        if (!chatOrderIdRef.current || !token) return;
+        try {
+            const res = await fetch(`/api/chat/${chatOrderIdRef.current}`, { headers: { 'x-auth-token': token } });
+            const data = await res.json();
+            if (data.success) {
+                setChatMessages(prev => {
+                    const newMessages = [...prev];
+                    let added = false;
+                    (data.data || []).forEach(msg => {
+                        if (!newMessages.some(m => m._id === msg._id)) {
+                            newMessages.push(msg);
+                            added = true;
+                        }
+                    });
+                    if (!added) return prev;
+                    return newMessages.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+                });
+            }
+        } catch (err) {
+            console.error('Chat history fetch error:', err);
+        }
+    };
+
+    // Load chat history only when orderId actually changes
     useEffect(() => {
         if (!activeOrder?._id || !token) return;
         // Reset messages for new order
         setChatMessages([]);
         setUnreadCount(0);
-        fetch(`/api/chat/${activeOrder._id}`, {
-            headers: { 'x-auth-token': token }
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const sorted = (data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                    setChatMessages(sorted);
-                    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-                }
-            })
-            .catch(err => console.error('Chat history load error:', err));
-    }, [activeOrder?._id, token]); // Only re-runs when ORDER changes, not on every poll
+        fetchChatHistory();
+    }, [activeOrder?._id, token]);
+
+    // Polling fallback when chat is open
+    useEffect(() => {
+        let interval;
+        if (isChatOpen && activeOrder?._id) {
+            interval = setInterval(fetchChatHistory, 3000);
+        }
+        return () => clearInterval(interval);
+    }, [isChatOpen, activeOrder?._id]);
 
     // ────────────────────────────────────────────────────────────────────────
 
@@ -733,9 +756,7 @@ const DeliveryDashboard = () => {
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                            {chatMessages.filter(msg => {
-                                return msg.senderRole === 'customer' || msg.senderRole === 'delivery_partner';
-                            }).map((msg, index) => {
+                            {chatMessages.map((msg, index) => {
                                 const isMe = msg.senderRole === 'delivery_partner';
                                 return (
                                     <div key={index} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>

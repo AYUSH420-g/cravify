@@ -105,7 +105,7 @@ io.on('connection', (socket) => {
         
         // Detailed room check
         const rooms = Array.from(socket.rooms);
-        console.log(`📡 Socket ${socket.id} (User: ${socket.handshake.auth.token ? 'Auth' : 'No-Auth'}) JOINED room: ${room}`);
+        console.log(`📡 [SOCKET] ID: ${socket.id} JOINED room: ${room}`);
         console.log(`   Active rooms for this socket:`, rooms);
 
         // Confirmation back to client for robustness
@@ -114,8 +114,10 @@ io.on('connection', (socket) => {
 
     // Personal room for general notifications (like status updates while browsing)
     socket.on('join_user_room', (userId) => {
-        socket.join(`user_${userId}`);
-        console.log(`Socket ${socket.id} joined personal room user_${userId}`);
+        if (!userId) return;
+        const room = `user_${userId}`;
+        socket.join(room);
+        console.log(`📡 [SOCKET] ID: ${socket.id} JOINED personal room: ${room}`);
     });
 
     // Handle live location updates from riders
@@ -126,12 +128,12 @@ io.on('connection', (socket) => {
             if (callback) callback({ success: false, error: 'Invalid location update data' });
             return;
         }
-        if (orderId) {
-            socket.to(`order_${orderId}`).emit('location_update', {
-                orderId,
-                location
-            });
-        }
+        
+        // Broadcast to order room
+        socket.to(`order_${orderId}`).emit('location_update', {
+            orderId,
+            location
+        });
 
         // Optionally persist last known location to User model and Order model
         try {
@@ -164,6 +166,9 @@ io.on('connection', (socket) => {
         }
         try {
             const ChatMessage = require('./models/Chat');
+            const Order = require('./models/Order');
+            const Restaurant = require('./models/Restaurant');
+
             const message = await ChatMessage.create({
                 order: orderId,
                 sender: senderId,
@@ -174,10 +179,31 @@ io.on('connection', (socket) => {
             // Populate sender info before emitting
             await message.populate('sender', 'name role');
 
-            // Emit standard event to everyone in the order tracking room
-            io.to(`order_${orderId}`).emit('receive_message', message);
-            // Backward compatibility for old frontend clients
-            io.to(`order_${orderId}`).emit('chat_message', message);
+            // Fetch order to find all participants for multi-room emission
+            const order = await Order.findById(orderId);
+            
+            if (order) {
+                // 1. Emit to order room (Standard)
+                io.to(`order_${orderId}`).emit('receive_message', message);
+                io.to(`order_${orderId}`).emit('chat_message', message);
+
+                // 2. Emit to Personal Rooms (Sync across multiple devices/tabs)
+                // Customer's personal room
+                io.to(`user_${order.user}`).emit('receive_message', message);
+                
+                // Delivery Partner's personal room
+                if (order.deliveryPartner) {
+                    io.to(`user_${order.deliveryPartner}`).emit('receive_message', message);
+                }
+
+                // Restaurant Vendor's personal room
+                const restaurant = await Restaurant.findById(order.restaurant);
+                if (restaurant && restaurant.vendor) {
+                    io.to(`user_${restaurant.vendor}`).emit('receive_message', message);
+                }
+
+                console.log(`💬 [CHAT] Msg from ${senderRole} in Order ${orderId} synced to all participant rooms`);
+            }
 
             if (callback) callback({ success: true, message });
         } catch (err) {
