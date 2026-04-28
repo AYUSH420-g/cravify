@@ -97,15 +97,19 @@ io.on('connection', (socket) => {
     // Tracking rooms for specific orders
     socket.on('join_order_room', (orderId) => {
         if (!orderId) {
-            console.warn(`Socket ${socket.id} tried to join order room without ID`);
+            console.warn(`❌ Socket ${socket.id} tried to join order room without ID`);
             return;
         }
         const room = `order_${orderId.toString()}`;
         socket.join(room);
-        console.log(`Socket ${socket.id} JOINED tracking room: ${room}`);
 
-        // Confirmation back to client
-        socket.emit('joined_room', { room });
+        // Detailed room check
+        const rooms = Array.from(socket.rooms);
+        console.log(`📡 Socket ${socket.id} (User: ${socket.handshake.auth.token ? 'Auth' : 'No-Auth'}) JOINED room: ${room}`);
+        console.log(`   Active rooms for this socket:`, rooms);
+
+        // Confirmation back to client for robustness
+        socket.emit('joined_room', { room, socketId: socket.id });
     });
 
     // Personal room for general notifications (like status updates while browsing)
@@ -170,10 +174,27 @@ io.on('connection', (socket) => {
             // Populate sender info before emitting
             await message.populate('sender', 'name role');
 
-            // Emit standard event to everyone in the order tracking room
-            io.to(`order_${orderId}`).emit('receive_message', message);
-            // Backward compatibility for old frontend clients
-            io.to(`order_${orderId}`).emit('chat_message', message);
+            const Order = require('./models/Order');
+            const Restaurant = require('./models/Restaurant');
+            const order = await Order.findById(orderId).select('user restaurant deliveryPartner').lean();
+            const rooms = new Set([`order_${orderId}`]);
+
+            if (order?.user) {
+                rooms.add(`user_${order.user.toString()}`);
+            }
+            if (order?.deliveryPartner) {
+                rooms.add(`user_${order.deliveryPartner.toString()}`);
+            }
+            if (order?.restaurant) {
+                const restaurant = await Restaurant.findById(order.restaurant).select('vendor').lean();
+                if (restaurant?.vendor) {
+                    rooms.add(`user_${restaurant.vendor.toString()}`);
+                }
+            }
+
+            const target = [...rooms].reduce((emitter, room) => emitter.to(room), io);
+            target.emit('receive_message', message);
+            target.emit('chat_message', message);
 
             if (callback) callback({ success: true, message });
         } catch (err) {

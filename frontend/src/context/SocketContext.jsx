@@ -13,15 +13,18 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         if (token && user && user.id) {
+            // Force websocket transport to avoid polling issues with rooms
             const newSocket = io('/', {
-                auth: { token }
+                auth: { token },
+                transports: ['websocket', 'polling'],
+                upgrade: true
             });
 
             socketRef.current = newSocket;
             setSocket(newSocket);
 
             newSocket.on('connect', () => {
-                console.log('Connected to socket server:', newSocket.id);
+                console.log('✅ SOCKET CONNECTED:', newSocket.id);
                 // Always join personal notification room
                 newSocket.emit('join_user_room', user.id);
                 // Delivery partners join their shared room
@@ -30,9 +33,13 @@ export const SocketProvider = ({ children }) => {
                 }
             });
 
+            newSocket.on('connect_error', (err) => {
+                console.error('❌ SOCKET CONNECTION ERROR:', err.message);
+            });
+
             // On reconnect, re-join rooms automatically
             newSocket.io.on('reconnect', () => {
-                console.log('Socket reconnected, re-joining rooms...');
+                console.log('🔄 SOCKET RECONNECTED, re-joining rooms...');
                 newSocket.emit('join_user_room', user.id);
                 if (user.role === 'delivery_partner') {
                     newSocket.emit('join_delivery_room');

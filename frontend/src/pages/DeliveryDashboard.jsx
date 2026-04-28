@@ -173,22 +173,26 @@ const DeliveryDashboard = () => {
     useEffect(() => {
         if (!socket) return;
 
+        console.log('Registering Rider Dashboard socket listeners. Socket ID:', socket.id);
+
         const handleReceiveMessage = (message) => {
-            console.log('Chat message received by Rider:', message);
+            console.log('RIDER CHAT EVENT [receive_message]:', message);
             const msgOrderId = (message.order?._id || message.order || '').toString();
             const currentOrderId = (chatOrderIdRef.current || '').toString();
-            
+
             if (msgOrderId && currentOrderId && msgOrderId === currentOrderId) {
                 setChatMessages((prev) => {
                     const isDuplicate = prev.some(m => m._id === message._id);
                     if (isDuplicate) return prev;
-                    
+
                     if (!isChatOpenRef.current && message.senderRole !== 'delivery_partner') {
                         setUnreadCount(c => c + 1);
                     }
                     return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
                 });
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else {
+                console.warn('Rider chat message for different order ignored:', { msgOrderId, currentOrderId });
             }
         };
 
@@ -196,6 +200,7 @@ const DeliveryDashboard = () => {
         socket.on('chat_message', handleReceiveMessage);
 
         return () => {
+            console.log('Cleaning up Rider Dashboard socket listeners');
             socket.off('receive_message', handleReceiveMessage);
             socket.off('chat_message', handleReceiveMessage);
         };
@@ -204,30 +209,57 @@ const DeliveryDashboard = () => {
     // Join order room + rejoin on reconnect whenever active order changes
     useEffect(() => {
         if (!activeOrder?._id || !socket) return;
-        socket.emit('join_order_room', activeOrder._id);
-        const handleReconnect = () => socket.emit('join_order_room', activeOrder._id);
-        socket.on('connect', handleReconnect);
-        return () => socket.off('connect', handleReconnect);
+
+        const joinRoom = () => {
+            console.log('RIDER: Emitting join_order_room for:', activeOrder._id);
+            socket.emit('join_order_room', activeOrder._id);
+        };
+
+        joinRoom();
+
+        // Re-join on every connect/reconnect
+        socket.on('connect', joinRoom);
+        socket.io.on('reconnect', joinRoom);
+
+        return () => {
+            socket.off('connect', joinRoom);
+            socket.io.off('reconnect', joinRoom);
+        };
     }, [activeOrder?._id, socket]);
 
     // Load chat history only when orderId actually changes (NOT on every 10s poll)
     useEffect(() => {
         if (!activeOrder?._id || !token) return;
-        // Reset messages for new order
-        setChatMessages([]);
-        setUnreadCount(0);
-        fetch(`/api/chat/${activeOrder._id}`, {
-            headers: { Authorization: `Bearer ${token}` }
-        })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const sorted = (data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                    setChatMessages(sorted);
+
+        let isMounted = true;
+
+        const fetchChatHistory = async (reset = false) => {
+            if (reset) {
+                setChatMessages([]);
+                setUnreadCount(0);
+            }
+
+            try {
+                const res = await fetch(`/api/chat/${activeOrder._id}`, {
+                    headers: { 'x-auth-token': token }
+                });
+                const data = await res.json();
+                if (isMounted && data.success) {
+                    setChatMessages((data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
                     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
                 }
-            })
-            .catch(err => console.error('Chat history load error:', err));
+            } catch (err) {
+                console.error('Chat history load error:', err);
+            }
+        };
+
+        fetchChatHistory(true);
+        const interval = setInterval(() => fetchChatHistory(false), 3000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
     }, [activeOrder?._id, token]); // Only re-runs when ORDER changes, not on every poll
 
     // ────────────────────────────────────────────────────────────────────────
@@ -364,7 +396,7 @@ const DeliveryDashboard = () => {
                     try {
                         await fetch(`/api/chat/${activeOrder._id}`, {
                             method: 'DELETE',
-                            headers: { Authorization: `Bearer ${token}` }
+                            headers: { 'x-auth-token': token }
                         });
                     } catch (e) { console.error('Chat cleanup failed', e); }
                     setActiveOrder(null);
@@ -402,7 +434,7 @@ const DeliveryDashboard = () => {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
+                    'x-auth-token': token
                 },
                 body: JSON.stringify({
                     text: msgText,
@@ -676,7 +708,7 @@ const DeliveryDashboard = () => {
                                 <MessageCircle size={20} className="text-primary" />
                                 <div>
                                     <h3 className="font-bold text-dark">
-                                        Chat with Customer
+                                        Order Chat
                                     </h3>
                                     <p className="text-xs text-gray-400">
                                         Coordinate order delivery
@@ -690,7 +722,7 @@ const DeliveryDashboard = () => {
 
                         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
                             {chatMessages.filter(msg => {
-                                return msg.senderRole === 'customer' || msg.senderRole === 'delivery_partner';
+                                return ['customer', 'restaurant_partner', 'delivery_partner'].includes(msg.senderRole);
                             }).map((msg, index) => {
                                 const isMe = msg.senderRole === 'delivery_partner';
                                 return (

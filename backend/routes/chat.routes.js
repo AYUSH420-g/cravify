@@ -2,7 +2,27 @@ const express = require('express');
 const router = express.Router();
 const ChatMessage = require('../models/Chat');
 const Order = require('../models/Order');
+const Restaurant = require('../models/Restaurant');
 const authMiddleware = require('../middleware/auth');
+
+const emitChatMessage = async (io, order, message) => {
+    if (!io || !order) return;
+
+    const rooms = new Set([`order_${order._id.toString()}`, `user_${order.user.toString()}`]);
+
+    if (order.deliveryPartner) {
+        rooms.add(`user_${order.deliveryPartner.toString()}`);
+    }
+
+    const restaurant = await Restaurant.findById(order.restaurant).select('vendor').lean();
+    if (restaurant?.vendor) {
+        rooms.add(`user_${restaurant.vendor.toString()}`);
+    }
+
+    const target = [...rooms].reduce((emitter, room) => emitter.to(room), io);
+    target.emit('receive_message', message);
+    target.emit('chat_message', message);
+};
 
 // Get all messages for a specific order
 router.get('/:orderId', authMiddleware, async (req, res) => {
@@ -13,7 +33,6 @@ router.get('/:orderId', authMiddleware, async (req, res) => {
         if (!order) return res.status(404).json({ message: 'Order not found' });
 
         // Check if user is authorized to view this order's chat
-        const Restaurant = require('../models/Restaurant');
         let isVendorOfOrder = false;
         if (req.user.role === 'restaurant_partner') {
             const restaurant = await Restaurant.findById(order.restaurant);
@@ -70,13 +89,7 @@ router.post('/:orderId', authMiddleware, async (req, res) => {
 
         // Emit via socket.io to everyone in the order room
         const io = req.app.get('io');
-        if (io) {
-            console.log(`Emitting chat message to room order_${orderId}`);
-            io.to(`order_${orderId}`).emit('receive_message', message);
-            io.to(`order_${orderId}`).emit('chat_message', message);
-        } else {
-            console.warn('Socket.io instance not found in app, real-time chat will fail');
-        }
+        await emitChatMessage(io, order, message);
 
         res.json({ success: true, message });
     } catch (err) {

@@ -46,22 +46,26 @@ const OrderTracking = () => {
     useEffect(() => {
         if (!socket) return;
 
+        console.log('Registering OrderTracking socket listeners. Socket ID:', socket.id);
+
         const handleReceiveMessage = (message) => {
-            console.log('Chat message received:', message);
+            console.log('CHAT EVENT [receive_message]:', message);
             const msgOrderId = (message.order?._id || message.order || '').toString();
             const currentOrderId = (orderIdRef.current || '').toString();
-            
+
             if (msgOrderId && currentOrderId && msgOrderId === currentOrderId) {
                 setMessages((prev) => {
                     const isDuplicate = prev.some(m => m._id === message._id);
                     if (isDuplicate) return prev;
-                    
+
                     if (!isChatOpenRef.current && message.senderRole !== 'customer') {
                         setUnreadCount(c => c + 1);
                     }
                     return [...prev, message].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
                 });
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else {
+                console.warn('Chat message for different order ignored:', { msgOrderId, currentOrderId });
             }
         };
 
@@ -82,40 +86,70 @@ const OrderTracking = () => {
         socket.on('chat_message', handleReceiveMessage);
         socket.on('location_update', handleLocationUpdate);
         socket.on('order_status_updated', handleStatusUpdate);
+        socket.on('joined_room', (data) => console.log('✅ ROOM JOIN CONFIRMED:', data));
 
         return () => {
+            console.log('Cleaning up OrderTracking socket listeners');
             socket.off('receive_message', handleReceiveMessage);
             socket.off('chat_message', handleReceiveMessage);
             socket.off('location_update', handleLocationUpdate);
             socket.off('order_status_updated', handleStatusUpdate);
+            socket.off('joined_room');
         };
     }, [socket]); // socket only — all handlers use refs
 
     // Join room + rejoin on reconnect whenever order changes
     useEffect(() => {
         if (!order?._id || !socket) return;
-        socket.emit('join_order_room', order._id);
-        const handleReconnect = () => { socket.emit('join_order_room', order._id); fetchLatestActiveOrder(); };
-        socket.on('connect', handleReconnect);
-        return () => socket.off('connect', handleReconnect);
+
+        const joinRoom = () => {
+            console.log('Emitting join_order_room for:', order._id);
+            socket.emit('join_order_room', order._id);
+        };
+
+        joinRoom();
+
+        // Re-join on every connect/reconnect
+        socket.on('connect', joinRoom);
+        socket.io.on('reconnect', joinRoom);
+
+        return () => {
+            socket.off('connect', joinRoom);
+            socket.io.off('reconnect', joinRoom);
+        };
     }, [order?._id, socket]);
 
     // Load chat history whenever order changes
     useEffect(() => {
         if (!order?._id || !token) return;
-        // Reset so stale messages from a previous order never linger
-        setMessages([]);
-        setUnreadCount(0);
-        fetch(`/api/chat/${order._id}`, { headers: { 'x-auth-token': token } })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                    const sorted = (data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-                    setMessages(sorted);
+
+        let isMounted = true;
+
+        const fetchChatHistory = async (reset = false) => {
+            if (reset) {
+                setMessages([]);
+                setUnreadCount(0);
+            }
+
+            try {
+                const res = await fetch(`/api/chat/${order._id}`, { headers: { 'x-auth-token': token } });
+                const data = await res.json();
+                if (isMounted && data.success) {
+                    setMessages((data.data || []).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)));
                     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
                 }
-            })
-            .catch(err => console.error('Chat history load error:', err));
+            } catch (err) {
+                console.error('Chat history load error:', err);
+            }
+        };
+
+        fetchChatHistory(true);
+        const interval = setInterval(() => fetchChatHistory(false), 3000);
+
+        return () => {
+            isMounted = false;
+            clearInterval(interval);
+        };
     }, [order?._id, token]);
 
     const handleSendMessage = async (e) => {
@@ -453,7 +487,7 @@ const OrderTracking = () => {
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-                        {messages.filter(msg => ['customer', 'delivery_partner'].includes(msg.senderRole)).map((msg) => {
+                        {messages.filter(msg => ['customer', 'restaurant_partner', 'delivery_partner'].includes(msg.senderRole)).map((msg) => {
                             const isMe = msg.senderRole === 'customer';
                             return (
                                 <div key={msg._id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
