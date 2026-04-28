@@ -32,13 +32,7 @@ export const CartProvider = ({ children }) => {
         fetchSettings();
     }, []);
 
-    useEffect(() => {
-        const token = localStorage.getItem('token');
-        if (!token && cartItems.length > 0) {
-            setCartItems([]);
-            setRestaurant(null);
-        }
-    }, [cartItems.length]);
+
 
     useEffect(() => {
         if (cartItems.length > 0) {
