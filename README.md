@@ -226,7 +226,7 @@ Cravify emphasizes extreme reliability through a **Professional Selenium Testing
 - **GitHub:** [@nevilnandasana](https://github.com/nevilnandasana)
 - **LinkedIn:** [Nevil Nandasana](https://www.linkedin.com/in/nevil-n-80b086317/)
 
-**Parin Makwana**
+**Parin D. Makwana**
 
 - **GitHub:** [@parinbajayebin](https://github.com/parinbajayebin)
 - **LinkedIn:** [Parin Makwana](https://www.linkedin.com/in/parin-makwana-b614a6333/)
